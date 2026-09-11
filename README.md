@@ -4,24 +4,51 @@
 
 ## Kiến trúc 3 lớp
 
-- presentation: giao diện Terminal
-- business: xử lý nghiệp vụ
-- data: quản lý dữ liệu
-- model: các đối tượng nghiệp vụ
+Project được xây dựng theo mô hình 3 lớp:
 
-## Chạy bằng IntelliJ IDEA
+- `terminal`: giao diện và tương tác với người dùng trên Terminal
+- `business`: xử lý nghiệp vụ của hệ thống
+- `data`: quản lý và lưu trữ dữ liệu
+- `model`: chứa các đối tượng nghiệp vụ
+- `utility`: các lớp tiện ích dùng chung
 
-Mở thư mục project, đặt `src` là Sources Root và chạy:
+Luồng xử lý:
 
-presentation.Main
+Terminal → Business → Data → File
 
-## Chức năng
+## Cấu trúc project
 
-- Quản lý sách: thêm, xem, tìm, sửa, xóa
-- Quản lý khách hàng
-- Lập hóa đơn
-- Tự động trừ tồn kho khi bán
-- Xem hóa đơn
-- Thống kê doanh thu
-
-Dữ liệu hiện lưu bằng ArrayList, chưa dùng database.
+```text
+BookStoreManagement/
+└── src/
+    ├── model/
+    │   ├── Person.java
+    │   ├── Customer.java
+    │   ├── Employee.java
+    │   ├── Book.java
+    │   ├── Invoice.java
+    │   └── InvoiceDetail.java
+    │
+    ├── data/
+    │   ├── IRepository.java
+    │   ├── BookRepository.java
+    │   ├── CustomerRepository.java
+    │   └── InvoiceRepository.java
+    │
+    ├── business/
+    │   ├── BookService.java
+    │   ├── CustomerService.java
+    │   ├── InvoiceService.java
+    │   └── ReportService.java
+    │
+    ├── utility/
+    │   ├── FileManager.java
+    │   ├── StoreConfig.java
+    │   └── InputHelper.java
+    │
+    └── terminal/
+        ├── Main.java
+        ├── MainMenu.java
+        ├── BookMenu.java
+        ├── CustomerMenu.java
+        └── InvoiceMenu.java
