@@ -1,25 +1,22 @@
 package model;
 
-public class Customer {
-    private String id;
-    private String name;
+public class Customer extends Person {
     private String phone;
 
     public Customer(String id, String name, String phone) {
-        this.id = id;
-        this.name = name;
-        this.phone = phone;
+        super(id, name);
+        this.phone = ModelChecks.text(phone, "Điện thoại");
     }
 
-    public String getId() { return id; }
-    public String getName() { return name; }
     public String getPhone() { return phone; }
 
-    public void setName(String name) { this.name = name; }
-    public void setPhone(String phone) { this.phone = phone; }
+    public void setPhone(String phone) { this.phone = ModelChecks.text(phone, "Điện thoại"); }
+
+    @Override
+    public String getRole() { return "Customer"; }
 
     @Override
     public String toString() {
-        return String.format("%-8s %-25s %-15s", id, name, phone);
+        return String.format("%-8s %-25s %-15s", getId(), getName(), phone);
     }
 }

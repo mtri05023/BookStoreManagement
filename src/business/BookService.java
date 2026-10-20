@@ -1,17 +1,18 @@
 package business;
 
-import data.BookRepository;
+import data.ICrudRepository;
 import model.Book;
 import java.util.List;
 
 public class BookService {
-    private BookRepository repository;
+    private final ICrudRepository<Book> repository;
 
-    public BookService(BookRepository repository) {
-        this.repository = repository;
+    public BookService(ICrudRepository<Book> repository) {
+        this.repository = java.util.Objects.requireNonNull(repository);
     }
 
     public boolean addBook(Book book) {
+        if (book == null) return false;
         if (repository.findById(book.getId()) != null) return false;
         if (book.getPrice() <= 0 || book.getQuantity() < 0) return false;
         repository.add(book);
@@ -33,7 +34,8 @@ public class BookService {
     public boolean updateBook(String id, String title, String author,
                               double price, int quantity) {
         Book book = repository.findById(id);
-        if (book == null || price <= 0 || quantity < 0) return false;
+        if (book == null || !Double.isFinite(price) || price <= 0 || quantity < 0
+                || !validText(title) || !validText(author)) return false;
 
         book.setTitle(title);
         book.setAuthor(author);
@@ -42,10 +44,8 @@ public class BookService {
         return true;
     }
 
-    public boolean sellBook(String id, int quantity) {
-        Book book = repository.findById(id);
-        if (book == null || quantity <= 0 || book.getQuantity() < quantity) return false;
-        book.setQuantity(book.getQuantity() - quantity);
-        return true;
+    private boolean validText(String value) {
+        return value != null && !value.isBlank() && !value.contains("|")
+                && !value.contains("\r") && !value.contains("\n");
     }
 }
