@@ -14,7 +14,7 @@ public class BookService {
     public boolean addBook(Book book) {
         if (book == null) return false;
         if (repository.findById(book.getId()) != null) return false;
-        if (book.getPrice() <= 0 || book.getQuantity() < 0) return false;
+        if (!Double.isFinite(book.getPrice()) || book.getPrice() <= 0 || book.getQuantity() < 0) return false;
         repository.add(book);
         return true;
     }

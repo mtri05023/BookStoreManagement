@@ -12,17 +12,19 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-/** Single-threaded in-memory checkout. Persistence must be integrated separately. */
+/** Single-threaded checkout. MainMenu saves the complete session as one text snapshot. */
 public class InvoiceService {
     private final IRepository<Invoice> invoices;
     private final IRepository<Book> books;
     private final IRepository<Customer> customers;
+    private final IRepository<Employee> employees;
 
     public InvoiceService(IRepository<Invoice> invoices, IRepository<Book> books,
-                          IRepository<Customer> customers) {
+                          IRepository<Customer> customers, IRepository<Employee> employees) {
         this.invoices = Objects.requireNonNull(invoices);
         this.books = Objects.requireNonNull(books);
         this.customers = Objects.requireNonNull(customers);
+        this.employees = Objects.requireNonNull(employees);
     }
 
     public Invoice createInvoice(String id, String customerId, Employee employee,
@@ -31,6 +33,8 @@ public class InvoiceService {
         if (invoices.findById(id) != null) throw new IllegalArgumentException("Mã hóa đơn đã tồn tại.");
         Customer customer = customers.findById(customerId);
         if (customer == null || employee == null) throw new IllegalArgumentException("Thiếu khách hàng hoặc nhân viên.");
+        employee = employees.findById(employee.getId());
+        if (employee == null) throw new IllegalArgumentException("Nhân viên không có trong danh sách.");
         if (quantities == null || quantities.isEmpty()) throw new IllegalArgumentException("Giỏ hàng rỗng.");
 
         Map<String, Integer> cart = new LinkedHashMap<>();

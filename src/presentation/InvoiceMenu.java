@@ -11,14 +11,20 @@ import model.InvoiceDetail;
 import utility.InputHelper;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class InvoiceMenu {
     private final BookService bookService;
     private final CustomerService customerService;
     private final InvoiceService invoiceService;
-    private final Employee employee;
+    private final Supplier<Employee> employee;
     private final InputHelper input;
     public InvoiceMenu(BookService bookService, CustomerService customerService, InvoiceService invoiceService, Employee employee, InputHelper input) {
+        this(bookService, customerService, invoiceService, () -> employee, input);
+    }
+
+    public InvoiceMenu(BookService bookService, CustomerService customerService, InvoiceService invoiceService,
+                       Supplier<Employee> employee, InputHelper input) {
         this.bookService = bookService;
         this.customerService = customerService;
         this.invoiceService = invoiceService;
@@ -59,7 +65,7 @@ public class InvoiceMenu {
                 System.out.println("Số lượng vượt giới hạn.");
             }
         }
-        Invoice invoice = invoiceService.createInvoice(invoiceId, customer.getId(), employee, cart);
+        Invoice invoice = invoiceService.createInvoice(invoiceId, customer.getId(), employee.get(), cart);
         printInvoice(invoice);
     }
 

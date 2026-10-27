@@ -3,6 +3,7 @@ import business.InvoiceService;
 import business.ReportService;
 import data.BookRepository;
 import data.CustomerRepository;
+import data.EmployeeRepository;
 import data.InvoiceRepository;
 import data.IRepository;
 import model.Book;
@@ -46,6 +47,7 @@ public class RegressionChecks {
     public static void main(String[] args) throws Exception {
         BookRepository books = new BookRepository();
         CustomerRepository customers = new CustomerRepository();
+        EmployeeRepository employees = new EmployeeRepository();
         InvoiceRepository invoices = new InvoiceRepository();
         Book book = new Book(" s001 ", "Java", "Author", 150000, 20);
         Book second = new Book("S002", "OOP", "Author", 100000, 1);
@@ -53,8 +55,9 @@ public class RegressionChecks {
         books.add(second);
         Customer customer = new Customer("kh001", "Customer", "0900000000");
         Employee employee = new Employee("NV001", "Employee", "Cashier");
+        employees.add(employee);
         customers.add(customer);
-        InvoiceService sales = new InvoiceService(invoices, books, customers);
+        InvoiceService sales = new InvoiceService(invoices, books, customers, employees);
         BookService bookService = new BookService(books);
         check(books.findById(" s001 ") == book, "Normalized lookup");
         rejects(IllegalArgumentException.class,
@@ -111,7 +114,7 @@ public class RegressionChecks {
             public List<Invoice> getAll() { return List.of(); }
             public Invoice findById(String id) { return null; }
         };
-        rejects(IllegalStateException.class, () -> new InvoiceService(failingRepository, books, customers)
+        rejects(IllegalStateException.class, () -> new InvoiceService(failingRepository, books, customers, employees)
                 .createInvoice("FAIL", "KH001", employee, Map.of("S001", 1)));
         check(book.getQuantity() == 18, "Repository rejection must not deduct stock");
         try (Scanner scanner = new Scanner("CANCEL\nKH001\nS001\n1\n-1\n")) {

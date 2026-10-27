@@ -1,0 +1,7 @@
+VERSION|1
+BOOK|S001|Java Core|Tác giả mẫu|150000.0|20
+BOOK|S002|Lập trình OOP|Tác giả mẫu|100000.0|10
+CUSTOMER|KH001|Khách hàng mẫu|0900000000
+CUSTOMER|KH002|Khách hàng thứ hai|0910000000
+EMPLOYEE|NV001|Nhân viên mẫu|Thu ngân
+END|2|2|1|0|0

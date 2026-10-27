@@ -3,9 +3,13 @@ package data;
 import model.Book;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Arrays;
 
 public class BookRepository implements ICrudRepository<Book> {
-    private final List<Book> books = new ArrayList<>();
+    private Book[] books;
+    private int size;
+
+    public BookRepository() { books = new Book[4]; }
 
     @Override
     public void add(Book book) {
@@ -13,17 +17,21 @@ public class BookRepository implements ICrudRepository<Book> {
         if (findById(book.getId()) != null) {
             throw new IllegalArgumentException("Mã đã tồn tại: " + book.getId());
         }
-        books.add(book);
+        if (size == books.length) books = Arrays.copyOf(books, books.length * 2);
+        books[size++] = book;
     }
 
     @Override
-    public List<Book> getAll() { return new ArrayList<>(books); }
+    public List<Book> getAll() {
+        return new ArrayList<>(Arrays.asList(Arrays.copyOf(books, size)));
+    }
 
     @Override
     public Book findById(String id) {
         if (id == null || id.isBlank()) return null;
         id = id.trim();
-        for (Book book : books) {
+        for (int i = 0; i < size; i++) {
+            Book book = books[i];
             if (book.getId().equalsIgnoreCase(id)) return book;
         }
         return null;
@@ -32,6 +40,14 @@ public class BookRepository implements ICrudRepository<Book> {
     @Override
     public boolean delete(String id) {
         Book book = findById(id);
-        return book != null && books.remove(book);
+        if (book == null) return false;
+        for (int i = 0; i < size; i++) {
+            if (books[i] == book) {
+                for (int j = i; j < size - 1; j++) books[j] = books[j + 1];
+                books[--size] = null;
+                return true;
+            }
+        }
+        return false;
     }
 }

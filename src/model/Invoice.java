@@ -11,6 +11,8 @@ public class Invoice {
     private final Employee employee;
     private final String customerName;
     private final String employeeName;
+    private final String customerPhone;
+    private final String employeePosition;
     private final LocalDate createdDate;
     private final List<InvoiceDetail> details = new ArrayList<>();
     private boolean completed;
@@ -26,6 +28,8 @@ public class Invoice {
         this.createdDate = Objects.requireNonNull(createdDate);
         this.customerName = customer.getName();
         this.employeeName = employee.getName();
+        this.customerPhone = customer.getPhone();
+        this.employeePosition = employee.getPosition();
     }
 
     public String getId() { return id; }
@@ -33,6 +37,8 @@ public class Invoice {
     public Employee getEmployee() { return employee; }
     public String getCustomerName() { return customerName; }
     public String getEmployeeName() { return employeeName; }
+    public String getCustomerPhone() { return customerPhone; }
+    public String getEmployeePosition() { return employeePosition; }
     public LocalDate getCreatedDate() { return createdDate; }
     public boolean isCompleted() { return completed; }
     public List<InvoiceDetail> getDetails() { return List.copyOf(details); }

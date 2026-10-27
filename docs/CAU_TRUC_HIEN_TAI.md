@@ -1,63 +1,68 @@
-﻿# Cấu trúc và hợp đồng hiện tại sau rà soát
+﻿# Cấu trúc và hợp đồng hiện tại — bản mẫu Leader
 
-Cập nhật 20/10/2026. Đọc file này trước khi mở rộng module; báo cáo khảo sát ban đầu chỉ phản ánh source trước khi sửa nền.
+Hướng dẫn đầy đủ, sơ đồ lớp, rubric và demo ở [LEADER_MTRI.md](LEADER_MTRI.md). File này là hợp đồng ngắn để các thành viên nối module.
 
-## Nền đã sửa
+## Các phần đã chạy thật
 
-- Giữ package presentation; Main nối các repository dùng chung, menu không tự tạo repository.
-- Person abstract giữ id/name; Customer/Employee kế thừa và override getRole. ModelChecks là helper package-private trong model, không phụ thuộc UI/service.
-- Model kiểm tra chuỗi bắt buộc, chuẩn hóa mã trim/uppercase, chặn giá không hữu hạn và tồn kho âm. Điện thoại hiện chỉ kiểm tra không rỗng, quy tắc định dạng chi tiết vẫn giao Nam.
-- IRepository có add/getAll/findById; ICrudRepository extends IRepository và thêm delete, chỉ dùng cho sách/khách. Không ép hóa đơn có API xóa.
-- Ba repository chặn null/mã trùng, tìm mã trim và không phân biệt hoa thường; getAll trả bản sao danh sách, không phải deep copy đối tượng.
-- BookService/CustomerService nhận ICrudRepository; InvoiceService/ReportService nhận IRepository. BookService.updateBook kiểm tra hết đầu vào trước khi sửa để không cập nhật dở.
-- InvoiceService sở hữu checkout. InvoiceMenu gom giỏ tạm, 0 xác nhận, -1 hủy; nhập từng dòng không trừ kho. EOF trước xác nhận cũng không trừ kho.
-- Invoice có LocalDate, snapshot tên khách/nhân viên; InvoiceDetail giữ snapshot mã/tên/giá sách. Hóa đơn hoàn tất không cho thêm chi tiết, getDetails trả list không sửa được.
-- Menu bắt lỗi dữ liệu/nghiệp vụ, tiếp tục điều hướng; EOF truyền về Main để thoát. Dọn import dư và thêm xử lý lựa chọn menu sai.
+- Person abstract, Customer/Employee kế thừa và override getRole.
+- PersonDirectory là danh sách trung tâm dùng Person[] + size, có initialize n, add 1/k, updateById, delete/dồn mảng, search chính xác/gần đúng theo từ khóa + vai trò, countByRole.
+- CustomerRepository và EmployeeRepository chia sẻ PersonDirectory trong StoreState. Không tạo kho con người riêng trong mỗi menu.
+- BookRepository dùng Book[], InvoiceRepository dùng Invoice[]; có tăng sức chứa và trả bản sao kết quả.
+- PersonService giữ quy tắc khởi tạo/xóa, PersonMenu làm mẫu nhập/xuất và đa hình ở menu 6.
+- InvoiceService kiểm tra cả giỏ, gộp mã sách trùng, tính tiền từ snapshot, chỉ cập nhật kho khi hóa đơn hợp lệ. Nhân viên được tra lại trong repository.
+- StoreFile/StoreTextCodec nạp và lưu snapshot UTF-8, bao gồm tên/giá/ngày lịch sử. Main nạp lúc mở, menu 7/0 và EOF lưu thao tác đã hoàn tất. Không seed chồng dữ liệu cũ.
+- Menu bắt lỗi đầu vào/nghiệp vụ; lỗi lưu ở menu 0 không làm thoát phiên. File hỏng không bị ghi đè bằng mẫu.
 
-## Chữ ký thực tế để các bạn dùng
+## Chữ ký constructor và API chính
 
 ```java
 BookService(ICrudRepository<Book> repository)
 CustomerService(ICrudRepository<Customer> repository)
-ReportService(IRepository<Invoice> repository)
-InvoiceService(IRepository<Invoice> invoices,
-               IRepository<Book> books,
-               IRepository<Customer> customers)
+PersonService(PersonDirectory people, IRepository<Invoice> invoices)
+InvoiceService(IRepository<Invoice> invoices, IRepository<Book> books,
+               IRepository<Customer> customers, IRepository<Employee> employees)
+ReportService(IRepository<Invoice> invoices)
+PersonMenu(PersonService people, InputHelper input)
+StoreFile(Path path)
 
 Invoice createInvoice(String id, String customerId, Employee employee,
                       Map<String, Integer> quantities)
+StoreState StoreFile.load()
+void StoreFile.save(StoreState state)
 ```
 
-Chữ ký ở đây dùng để tra cứu, không chép thành khai báo phương thức không có thân trong concrete class.
+Các chữ ký là tham khảo, không chép thành code có dấu ; trong concrete class. Constructor InvoiceService đã đổi từ 3 sang 4 repository, Main và test đã cập nhật.
 
-Checkout: chuẩn hóa/gộp mã trùng trong giỏ, chặn tràn số lượng, kiểm tra tất cả sách và tồn kho, tạo hóa đơn rồi thêm vào repository bộ nhớ trước khi cập nhật lượng còn lại. Nếu repository hiện tại từ chối thêm, kho không đổi. Khi viết repository mới, add phải kiểm tra lỗi trước khi thay dữ liệu; không thêm xong rồi ném lỗi như thể chưa thêm. Ứng dụng một luồng; chưa hỗ trợ giao dịch nhiều người dùng.
+IRepository: add/getAll/findById. ICrudRepository extends IRepository, thêm delete cho sách/khách/nhân viên/danh sách người; không mở chức năng xóa hóa đơn. add từ chối lỗi trước khi đổi dữ liệu; find không có trả null; getAll không trả list gốc, nhưng đối tượng trong list vẫn là tham chiếu sống.
 
-**Thay đổi cần biết:** đã bỏ InvoiceService.addInvoice, InvoiceService.getRevenue và BookService.sellBook. Bán hàng gọi createInvoice; thống kê gọi ReportService.getRevenue. Main và menu đã cập nhật. Không thêm lại lối tắt bỏ qua kiểm tra cả giỏ.
+Mã trim/uppercase, không trùng trong PersonDirectory; chuỗi bắt buộc không rỗng và không có dấu phân cách file hoặc xuống dòng. Giá hữu hạn >0, kho >=0, lượng bán >0. Model lỗi ném IllegalArgumentException; checkout thiếu kho ném IllegalStateException; lỗi file là IOException. CustomerService còn thiếu kiểm tra định dạng phone chuyên biệt, giao Nam hoàn thiện.
 
-Model có lỗi đầu vào thì ném IllegalArgumentException; service thêm/sửa sách vẫn giữ boolean cho đầu vào kiểm tra được tại service. Menu phải bắt lỗi constructor khi tự new model. Checkout ném IllegalArgumentException cho dữ liệu sai và IllegalStateException cho thiếu kho. Null dependency constructor là lỗi lập trình, không phải lỗi để yêu cầu người dùng nhập lại.
+Bán qua createInvoice; báo cáo qua ReportService. Không thêm lại sellBook hoặc addInvoice công khai làm lối bỏ qua checkout. Invoice.complete khóa chi tiết; getDetails không sửa được. Dùng getBookTitle/getBookId/getPrice, getCustomerName/getEmployeeName/getCustomerPhone/getEmployeePosition khi làm lịch sử. getBook/getCustomer/getEmployee không phải API để cập nhật danh mục.
 
-Constructor cũ Book/Customer/Employee/Invoice vẫn dùng được với dữ liệu hợp lệ. Invoice thêm constructor nhận LocalDate; InvoiceDetail thêm constructor nhận đơn giá lịch sử. Loader snapshot tên lịch sử từ file chưa có: không dùng constructor chụp tên hiện tại rồi tuyên bố đã phục hồi đúng lịch sử.
+PersonService chặn xóa người có hóa đơn và NV001, chặn thay toàn bộ danh sách khi đã có hóa đơn. Nam bổ sung nút xóa khách bằng quy tắc này, không bypass qua repository. BookService hiện cho xóa danh mục sách; loader vẫn giữ hóa đơn lịch sử bằng snapshot. Không tự nạp sách lưu trữ vào danh mục bán hiện tại.
 
-Getter getBook/getCustomer/getEmployee vẫn là tham chiếu sống để tương thích. Khi in/báo cáo lịch sử dùng getBookId/getBookTitle/getPrice, getCustomerName/getEmployeeName. Không sửa danh mục qua các tham chiếu đó.
+## File và cấu hình
 
-## Việc mỗi thành viên bắt đầu làm tiếp
+StoreConfig: DEFAULT_EMPLOYEE_ID, STORE_NAME, FILE_VERSION, TEXT_CHARSET, STORE_FILE và static resolveStoreFile(args). Mặc định data/store.txt; --data <path> chọn file khác.
 
-| Người | Phần tiếp tục | Điểm kết nối cần giữ |
-|---|---|---|
-| Trí | Review hợp đồng, cơ chế commit lưu file với Hoàng, kiểm tra liên kết khi xóa, tích hợp/demo | Một luồng checkout duy nhất, repository chung |
-| Phú | category, tìm sách theo tên/tác giả/thể loại, kiểm thử CRUD và codec sách | Giữ constructor đang gọi hoặc thêm overload; không mở lại sellBook |
-| Nam | CustomerService sửa/xóa và menu; định dạng phone, codec khách/nhân viên | CustomerRepository.delete đã có; không lặp field Person |
-| Long | Top sách, lọc ngày và menu báo cáo; loader đầy đủ snapshot hóa đơn | Dùng giá/ngày/tên lịch sử; chỉ hóa đơn hoàn tất |
-| Hoàng | Dữ liệu file, cơ chế nạp/lưu, xử lý lỗi ghi, hướng dẫn chạy | FileManager hiện chỉ I/O dòng, chưa atomic commit |
+Schema VERSION|1 có BOOK, CUSTOMER, EMPLOYEE, INVOICE, DETAIL và END với tổng số bản ghi. Định nghĩa chính xác từng cột trong LEADER_MTRI.md, dữ liệu hợp lệ ở samples/store.txt. Đổi field/schema phải cập nhật encode, decode, version/migration, sample và test cùng lúc.
 
-Quy tắc chặn xóa sách/khách đã có hóa đơn chưa nối vào service. Trí phối hợp các chủ module trước khi bổ sung API xóa khách; hiện deleteBook còn xóa trong danh mục nhưng snapshot hóa đơn trong bộ nhớ vẫn giữ thông tin bán. Không coi việc xóa trong bộ nhớ là đã có hợp đồng lưu/nạp lịch sử khi mất bản ghi liên kết.
+StoreFile.save dùng FileManager.writeLinesAtomic trên một snapshot; không thay bằng ghi từng repository thành nhiều file rời. Đây là lưu phiên qua menu, không phải tự commit đĩa trong mỗi createInvoice. Nếu filesystem không hỗ trợ atomic replace thì báo lỗi, không tự ghi đè fallback.
 
-## Giới hạn hiện tại
+## Phần thành viên tiếp tục
 
-Vẫn dùng double cho tiền; chưa tự đổi sang long để tránh phá API nhóm. Chặn NaN/Infinity và tràn kết quả nhưng chưa giải quyết mọi sai số tiền lẻ. Chưa tích hợp lưu file, không phục hồi dữ liệu sau thoát. StoreConfig.STORE_FILE là đường dẫn dành cho bước tiếp theo. FileManager.writeLines ghi trực tiếp; phải bổ sung cơ chế snapshot/commit và kiểm thử lỗi trước khi dùng cho checkout.
+| Người | Phần tiếp tục |
+|---|---|
+| Trí | Review PR, chốt các thay đổi hợp đồng/schema, tổng hợp module hoàn thiện, chạy kiểm thử và demo |
+| Phú | category, tìm sách nhiều trường, BookMenu/BookService đầy đủ và schema sách mở rộng |
+| Nam | CustomerMenu/CustomerService sửa/xóa, định dạng phone, trình bày kế thừa/đa hình; dùng mẫu PersonService |
+| Long | Báo cáo top sách/lọc ngày, tìm/xem hóa đơn chi tiết; dùng dữ liệu lịch sử đã được bảo vệ |
+| Hoàng | Mở rộng InputHelper/FileManager, bộ dữ liệu và kiểm thử môi trường; mẫu nạp/lưu đã nối để học theo |
 
-## Bằng chứng kiểm tra
+Phần mẫu trung tâm có thao tác khách/nhân viên nhưng không đồng nghĩa menu riêng của các bạn đã hoàn tất.
 
-Biên dịch toàn bộ với javac 27, đích --release 17 và -Xlint:all; không còn cảnh báo ở lần kiểm tra cuối. Chạy RegressionChecks: 34 kiểm tra đạt, gồm đa hình Person, interface, mã trùng/null, danh sách bảo vệ, validation, cập nhật không dở, thiếu kho nhiều sách, giỏ trùng mã, hóa đơn trùng, snapshot lịch sử, báo cáo, giả lập repository từ chối thêm, hủy/EOF khi nhập giỏ, retry và UTF-8 round-trip. Đã chạy thêm luồng menu bán 2 sách Java Core, hóa đơn và doanh thu đều 300000.
+## Kiểm chứng và giới hạn
 
-Script PowerShell có thể bị execution policy trên máy chặn; README có lệnh trực tiếp để chạy cùng các kiểm tra. Đây là kiểm tra hồi quy nền, không thay thế kiểm thử các chức năng thành viên sẽ bổ sung.
+Java thuần, đích 17; có bộ RegressionChecks và LeaderChecks. README chứa lệnh chạy trực tiếp nếu PowerShell chặn script. Ghi kết quả thực tế của lần chạy cuối trong bàn giao/PR, không tự đánh dấu checklist đã qua khi mới viết test.
+
+Một tiến trình, chưa đồng bộ nhiều người dùng; chưa tự lưu từng lần bán; dữ liệu chưa lưu có thể mất khi tắt cưỡng bức. Double có giới hạn tiền lẻ. Chỉ schema phiên bản 1 đang hỗ trợ; file VERSION khác sẽ báo lỗi để tránh đọc nhầm.

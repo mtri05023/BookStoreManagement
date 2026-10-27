@@ -6,7 +6,7 @@ Tài liệu này hướng dẫn thành viên tiếp tục code trên cấu trúc
 
 ## Cập nhật sau rà soát cấu trúc
 
-Đọc [hợp đồng hiện tại](docs/CAU_TRUC_HIEN_TAI.md) trước khi dùng các mẫu bên dưới. Đã có ICrudRepository, checkout tập trung, ngày lập, snapshot và khóa hóa đơn. Báo cáo khảo sát ban đầu chỉ mô tả trạng thái trước lần sửa nền.
+Đọc [hợp đồng hiện tại](docs/CAU_TRUC_HIEN_TAI.md) và [mẫu Leader theo tiêu chí thầy](docs/LEADER_MTRI.md) trước khi dùng các mẫu bên dưới. Đã có mảng Person[] trung tâm, Book[]/Invoice[], PersonService/PersonMenu, checkout tập trung, snapshot lịch sử và lưu/nạp text thật. Báo cáo khảo sát ban đầu chỉ mô tả trạng thái trước lần sửa nền.
 
 ## 1. Đọc gì trước khi code?
 
@@ -29,7 +29,7 @@ Không tự đổi tên package, đổi kiểu tiền, chữ ký constructor chu
 | presentation | Nhập, hiển thị, gọi service, xử lý quay lại/thoát | Menu tạo repository riêng hoặc lưu trực tiếp hóa đơn |
 | utility | Đọc dữ liệu nhập, đọc/ghi dòng file, hằng cấu hình | FileManager tự quyết định sách nào được bán |
 
-Luồng chuẩn: `Menu -> Service -> Repository -> FileManager` khi đã tích hợp lưu file. Model là dữ liệu trao đổi giữa các tầng. Hiện tại repository vẫn chỉ lưu trong bộ nhớ.
+Luồng xử lý: `Menu -> Service -> Repository`. Repository giữ mảng trong phiên; MainMenu dùng StoreFile/StoreTextCodec để lưu toàn bộ StoreState qua FileManager. Model là dữ liệu trao đổi. Không tự gắn ghi file từng repository vào giữa checkout vì sẽ phá thiết kế snapshot một file.
 
 ## 3. Chuẩn viết từng dòng và từng khối
 
@@ -149,8 +149,8 @@ Chốt mã/kiểu tiền/API -> model chung -> repository -> service từng modu
 
 1. Giữ implements IRepository<Book>.
 2. findById tìm không phân biệt hoa/thường; xử lý id null theo quy ước thống nhất.
-3. getAll trả bản sao list như hiện tại; không trả field list gốc trở lại.
-4. Khi bổ sung lưu file, repository/codec ánh xạ từng cột, FileManager chỉ thực hiện I/O.
+3. BookRepository đã dùng Book[] + size; getAll trả bản sao list, không đổi storage về ArrayList.
+4. StoreTextCodec đã ánh xạ dữ liệu sách. Thêm category thì cập nhật schema, loader, sample và test cùng Trí/Hoàng.
 
 ### BookService.java — viết theo thứ tự kiểm tra
 
@@ -178,7 +178,7 @@ Nhập đủ trường -> gọi service -> dựa trên kết quả để thông 
 
 ### Repository và service khách
 
-Hiện đã có addCustomer/getCustomers/findCustomer và CustomerRepository.delete. Hai API sửa/xóa ở CustomerService bên dưới vẫn cần Nam bổ sung và nối menu:
+Hiện đã có addCustomer/getCustomers/findCustomer và CustomerRepository.delete. PersonService/PersonMenu đã làm mẫu sửa/xóa trên mảng chung. CustomerRepository dùng chung PersonDirectory với EmployeeRepository. Hai API ở CustomerService dưới đây vẫn cần Nam bổ sung và nối menu riêng:
 
 ```java
 // Trong CustomerRepository: trả false nếu không tìm thấy.
@@ -191,7 +191,7 @@ public boolean deleteCustomer(String id);
 
 Các dòng trên là **khai báo hợp đồng**, không chép nguyên dạng dấu `;` vào concrete class vì phương thức phải có thân `{ ... }`.
 
-Thêm khách: kiểm tra null -> mã/tên/phone -> trùng mã -> repository.add. Sửa khách: tìm -> kiểm tra tên và phone -> setName/setPhone -> true. Xóa khách: đề xuất chặn nếu đã có hóa đơn, cần phối hợp Trí/Long để tra liên kết thay vì tự tạo InvoiceRepository rỗng.
+Thêm khách: kiểm tra null -> mã/tên/phone -> trùng mã -> repository.add. Sửa khách: tìm -> kiểm tra tên và phone -> cập nhật -> true; xem mẫu PersonService.updateById. Xóa khách: dùng quy tắc PersonService.delete đã chặn người có hóa đơn và nhân viên mặc định; không tự tạo InvoiceRepository rỗng hoặc bypass kiểm tra.
 
 ### CustomerMenu.java
 
@@ -214,7 +214,7 @@ Import List, Person, Customer, Employee ở file chạy demo. Không cần tạo
 
 ## 8. Minh Trí + Long — nghiệp vụ lập hóa đơn
 
-**Đã sửa:** InvoiceMenu gom giỏ tạm, InvoiceService.createInvoice kiểm tra toàn bộ giỏ trước khi lưu và trừ kho trong bộ nhớ. Hủy -1 hoặc EOF trước xác nhận không đổi kho. addInvoice và sellBook đã bỏ để tránh đường bán bỏ qua checkout.
+**Đã sửa:** InvoiceMenu gom giỏ tạm, InvoiceService.createInvoice kiểm tra toàn bộ giỏ trước khi lưu vào repository và trừ kho trong bộ nhớ. Hủy -1 hoặc EOF trước xác nhận không đổi kho. MainMenu lưu snapshot toàn phiên ở mục 7/0; không tự lưu từng lần bán. addInvoice và sellBook đã bỏ để tránh đường bán bỏ qua checkout.
 
 ### Hợp đồng đã có và đã nối từ Main
 
@@ -224,7 +224,7 @@ public Invoice createInvoice(String id, String customerId,
         Employee employee, Map<String, Integer> quantities);
 ```
 
-Constructor hiện nhận IRepository<Invoice>, IRepository<Book>, IRepository<Customer> theo thứ tự đó. Main đã truyền instance chung. Menu không được tạo Customer/Book giả rồi đưa service tin dùng.
+Constructor hiện nhận IRepository<Invoice>, IRepository<Book>, IRepository<Customer>, IRepository<Employee> theo thứ tự đó. Main đã truyền instance chung. Service tra lại nhân viên từ repository để không tin đối tượng Employee tự tạo ở ngoài. InvoiceMenu dùng Supplier lấy nhân viên hiện tại nếu người đó đã được sửa trong mảng.
 
 ### Viết thân phương thức theo từng bước
 
@@ -234,8 +234,8 @@ Constructor hiện nhận IRepository<Invoice>, IRepository<Book>, IRepository<C
 4. Kiểm tra lượng từng mã > 0 và phép cộng không tràn int.
 5. Duyệt toàn bộ giỏ: lấy Book chính thức, kiểm tra tồn kho và giá. **Không setQuantity trong vòng kiểm tra này.**
 6. Tạo Invoice/InvoiceDetail bằng đơn giá tại lúc xác nhận bán, tính tổng; chặn kết quả không hữu hạn nếu còn double.
-7. Chuẩn bị cả kho mới và hóa đơn mới. Nếu có lưu file thì commit theo cơ chế chung của Trí/Hoàng, không lưu độc lập từng phần rồi báo thành công.
-8. Chỉ cập nhật trạng thái chính thức khi điều kiện hoàn tất thỏa mãn. Nếu bước lưu thất bại, trạng thái bộ nhớ và file không được lệch nhau; cần cơ chế snapshot/rollback có kiểm chứng.
+7. Chuẩn bị cả kho mới và hóa đơn mới. Hiện checkout chỉ commit trong bộ nhớ sau khi kiểm tra; menu lưu snapshot toàn phiên theo lựa chọn người dùng.
+8. Chỉ cập nhật trạng thái khi điều kiện hoàn tất thỏa mãn. Lưu file thất bại phải báo lỗi, giữ file trước đó và cho người dùng thử lưu lại; không coi thay đổi chưa lưu là đã bền vững. Nếu sau này cần tự lưu từng lần bán, phải thiết kế thêm rollback/commit và test, không chỉ chèn write vào giữa.
 9. Trả Invoice đã hoàn tất; menu mới in thông báo bán thành công.
 
 Checkout hiện dùng IllegalArgumentException cho dữ liệu sai, IllegalStateException cho thiếu kho. Menu đã bắt hai loại và hiển thị thông báo. Không bắt Exception rồi vẫn in “thành công”. Không gọi repository.add thêm lần nữa sau createInvoice.
@@ -250,7 +250,7 @@ Checkout hiện dùng IllegalArgumentException cho dữ liệu sai, IllegalState
 | S001 đủ nhưng S002 thiếu | Không trừ kho cả S001 lẫn S002 |
 | Hủy hoặc hết dữ liệu nhập trước xác nhận | Không trừ kho |
 | Trùng HD001 | Không thêm hóa đơn, không trừ kho lần hai |
-| Ghi file thất bại | Báo lỗi; không báo bán thành công, không để cập nhật dở |
+| Lưu snapshot thất bại | Báo lỗi; giữ phiên bộ nhớ và file cũ, không báo đã lưu/thoát thành công |
 
 Một luồng Terminal không cần giải bài toán nhiều người mua cùng lúc ở phiên bản hiện tại. Nhưng ghi nhiều file vẫn có nguy cơ lệch khi chương trình dừng giữa chừng; không coi “ghi file tạm” là đủ nếu còn phải thay thế nhiều file.
 
@@ -263,13 +263,13 @@ Một luồng Terminal không cần giải bài toán nhiều người mua cùng
 3. getTotal cộng thành tiền từ detail; không lấy giá sách hiện tại để tính lại.
 4. getDetails đã trả list không sửa được; không đổi về danh sách gốc.
 5. complete/isCompleted đã có; InvoiceRepository.add hoàn tất hóa đơn, sau đó addDetail bị chặn.
-6. Snapshot mã/tên/giá sách, tên khách/nhân viên trong bộ nhớ đã có. Khi làm loader phải bổ sung cách nạp tên lịch sử từ file, không chụp nhầm tên hiện tại.
+6. Snapshot mã/tên/giá sách, tên/phone khách, tên/chức vụ nhân viên đã có và StoreTextCodec phục hồi đúng từ text. Không đổi loader về chụp thông tin hiện tại.
 
 ### InvoiceDetail.java
 
 1. Kiểm tra book không null và quantity > 0.
 2. Giữ đơn giá tại lúc bán; getter getAmount tính quantity * price đã chụp.
-3. Constructor `(Book book, int quantity, double price)` đã có để nhận đơn giá lịch sử. Tên sách vẫn chụp từ Book ở lúc dựng detail; loader cần cách nạp snapshot tên đã lưu riêng.
+3. Constructor `(Book book, int quantity, double price, String historicalTitle)` đã có để phục hồi cả giá và tên lịch sử. Constructor 2/3 tham số phục vụ tạo mới hoặc tương thích.
 4. Nếu lưu snapshot tên/mã, ghi rõ field nào phục vụ lịch sử và field nào phục vụ tham chiếu hiện tại.
 
 ### InvoiceRepository.java
@@ -306,15 +306,15 @@ Hiện đã có read/readInt/readDouble/readDate. readInt/readDouble mới kiể
 
 ### FileManager.java
 
-Hiện readLines/writeLines chỉ đọc/ghi dòng UTF-8, writeLines ghi trực tiếp. StoreConfig.STORE_FILE chưa được repository dùng.
+Đã có readLines/writeLines và writeLinesAtomic. StoreFile dùng atomic write cho snapshot tại StoreConfig.STORE_FILE hoặc đường dẫn --data. writeLines ghi trực tiếp chỉ là hàm tiện ích, không dùng thay atomic write cho dữ liệu ứng dụng.
 
-1. Trí chốt schema cùng các chủ module trước khi tạo dữ liệu file. Schema trong báo cáo mới là đề xuất.
-2. Hoàng viết I/O chung; Phú/Nam/Long viết hoặc phối hợp codec dữ liệu của mình.
+1. Schema phiên bản 1 đã được triển khai trong StoreTextCodec, mô tả đúng trong LEADER_MTRI.md. Schema ở báo cáo khảo sát cũ là lịch sử, không dùng thay hợp đồng hiện tại.
+2. Hoàng mở rộng I/O và test; Phú/Nam/Long phối hợp thay đổi codec dữ liệu của mình trên mẫu đã chạy.
 3. Đọc file vào cấu trúc tạm; kiểm tra đủ cột, kiểu số/ngày, mã trùng và liên kết trước khi thay trạng thái ứng dụng.
 4. Nếu dùng dấu `|`, tách bằng `line.split("\\|", -1)` để giữ cột rỗng. Báo số dòng lỗi; không bỏ qua dòng hỏng một cách im lặng.
 5. File không tồn tại có thể là lần chạy đầu; lỗi không có quyền đọc khác với file không tồn tại, không coi cả hai là dữ liệu rỗng.
 6. File rỗng phải có xử lý rõ. Không tự ghi đè file hỏng bằng seed khi vừa nạp lỗi.
-7. Với phương án snapshot một file: tạo nội dung đầy đủ -> ghi file tạm cùng thư mục -> thay thế file chính bằng thao tác phù hợp filesystem -> xử lý lỗi/backup theo thiết kế chung. Không công bố an toàn khi lỗi giữa chừng nếu chưa kiểm chứng.
+7. writeLinesAtomic đã ghi file tạm cùng thư mục rồi atomic replace một snapshot. Nếu filesystem không hỗ trợ thì báo lỗi, không fallback ghi đè. Chưa bảo đảm mất điện tuyệt đối hoặc nhiều tiến trình cùng ghi; không tuyên bố vượt phạm vi kiểm chứng.
 8. Không bắt IOException rồi trả true; để caller thông báo và giữ trạng thái nhất quán.
 9. Nạp lại detail bằng đơn giá lịch sử đã lưu, không theo giá Book mới.
 
