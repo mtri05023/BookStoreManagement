@@ -40,7 +40,7 @@ public class InvoiceMenu {
 
         Customer customer = customerService.findCustomer(input.read("Ma khach hang: "));
         if (customer == null) {
-            System.out.println("Không tìm thấy khách hàng.");
+            System.out.println("Khong tim thay khach hang.");
             return;
         }
 
