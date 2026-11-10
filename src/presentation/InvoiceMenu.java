@@ -80,20 +80,20 @@ public class InvoiceMenu {
     }
 
     public void printInvoice(Invoice invoice) {
-        System.out.println("\n============== HÓA ĐƠN ==============");
-        System.out.println("Mã HĐ: " + invoice.getId());
-        System.out.println("Khách hàng: " + invoice.getCustomerName());
-        System.out.println("Nhân viên: " + invoice.getEmployeeName());
+        System.out.println("\n============== HOA DON ==============");
+        System.out.println("Ma HD: " + invoice.getId());
+        System.out.println("Khach hang: " + invoice.getCustomerName());
+        System.out.println("Nhan vien: " + invoice.getEmployeeName());
         System.out.println("--------------------------------------");
 
-        System.out.println("Ngày lập: " + invoice.getCreatedDate());
+        System.out.println("Ngay lap hoa don: " + invoice.getCreatedDate());
         for (InvoiceDetail d : invoice.getDetails()) {
             System.out.printf("%-25s x%-3d %10.0f%n",
                     d.getBookTitle(), d.getQuantity(), d.getAmount());
         }
 
         System.out.println("--------------------------------------");
-        System.out.printf("TỔNG TIỀN: %,.0f VNĐ%n", invoice.getTotal());
+        System.out.printf("TONG TIEN: %,.0f VNĐ%n", invoice.getTotal());
         System.out.println("======================================");
     }
 
