@@ -46,7 +46,7 @@ public class InvoiceMenu {
 
         Map<String, Integer> cart = new LinkedHashMap<>();
         while (true) {
-            String bookId = input.read("Ma sach(0 để thanh toán, -1 để hủy): ");
+            String bookId = input.read("Ma sach(0: thanh toan, -1: huy): ");
             if (bookId.equals("-1")) return;
             if (bookId.equals("0")) break;
             Book book = bookService.findBook(bookId);
