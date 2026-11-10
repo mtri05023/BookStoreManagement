@@ -13,10 +13,14 @@ import model.Invoice;
 import model.InvoiceDetail;
 import model.Person;
 import business.CustomerService;
+import presentation.BookMenu;
 import presentation.InvoiceMenu;
 import utility.FileManager;
 import utility.InputHelper;
 
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -68,13 +72,62 @@ public class RegressionChecks {
         rejects(IllegalArgumentException.class, () -> new Book(" ", "B", "A", 1, 0));
         rejects(IllegalArgumentException.class, () -> book.setPrice(Double.NaN));
         rejects(IllegalArgumentException.class, () -> book.setPrice(Double.POSITIVE_INFINITY));
-        check(!bookService.updateBook("S001", "Changed", " ", 1, 2), "Reject invalid update");
+        check(!bookService.updateBook("S001", "Changed", " ", "Lập trình", 1, 2), "Reject invalid update");
         check(book.getTitle().equals("Java") && book.getQuantity() == 20,
                 "Failed update must not mutate fields");
         check(!bookService.addBook(null), "Null service input");
         Person person = customer;
         check(person.getRole().equals("Customer") && employee.getRole().equals("Employee"),
                 "Person polymorphism");
+
+        Book categorized = new Book("S010", "Clean Code", "Robert C. Martin", "Kỹ thuật", 200000, 5);
+        check(categorized.getCategory().equals("Kỹ thuật"), "Book stores category");
+        Book legacyBook = new Book("S011", "Legacy", "Author", 50000, 3);
+        check(legacyBook.getCategory().equals(Book.DEFAULT_CATEGORY),
+                "5-arg constructor defaults category to the static DEFAULT_CATEGORY");
+        rejects(IllegalArgumentException.class, () -> new Book("S012", "Title", "Author", " ", 1, 1));
+        rejects(IllegalArgumentException.class, () -> categorized.setCategory(""));
+        books.add(categorized);
+
+        check(bookService.updateBook("S010", "Clean Code", "Robert C. Martin", "Kỹ năng", 200000, 5),
+                "updateBook accepts a new category");
+        check(categorized.getCategory().equals("Kỹ năng"), "updateBook applies the new category");
+        check(!bookService.updateBook("S010", "Clean Code", "Robert C. Martin", " ", 200000, 5),
+                "updateBook rejects a blank category");
+        check(categorized.getCategory().equals("Kỹ năng") && categorized.getQuantity() == 5,
+                "Rejected update must not mutate any field");
+
+        check(bookService.searchBooks("kỹ năng").size() == 1
+                && bookService.searchBooks("kỹ năng").get(0).getId().equals("S010"),
+                "searchBooks matches category case-insensitively");
+        check(bookService.searchBooks("clean").size() == 1, "searchBooks matches title");
+        check(bookService.searchBooks("missing-keyword").isEmpty(),
+                "searchBooks returns an empty list when nothing matches");
+        check(bookService.searchBooks(" ").isEmpty(), "searchBooks rejects a blank keyword");
+
+        // BookMenu: menu wiring reads/writes category through the service, same as the other fields.
+        try (Scanner scanner = new Scanner("S020\nEffective Java\nJoshua Bloch\nKỹ thuật\n180000\n7\n")) {
+            new BookMenu(bookService, new InputHelper(scanner)).addBook();
+            Book added = bookService.findBook("S020");
+            check(added != null && added.getCategory().equals("Kỹ thuật"), "BookMenu.addBook captures category");
+        }
+        try (Scanner scanner = new Scanner("S020\nEffective Java 3rd\nJoshua Bloch\nTham khảo\n190000\n6\n")) {
+            new BookMenu(bookService, new InputHelper(scanner)).updateBook();
+            Book updated = bookService.findBook("S020");
+            check(updated.getTitle().equals("Effective Java 3rd") && updated.getCategory().equals("Tham khảo"),
+                    "BookMenu.updateBook captures category");
+        }
+        ByteArrayOutputStream searchOutput = new ByteArrayOutputStream();
+        PrintStream previousOut = System.out;
+        try (Scanner scanner = new Scanner("Tham khảo\n");
+             PrintStream outSink = new PrintStream(searchOutput, true, StandardCharsets.UTF_8)) {
+            System.setOut(outSink);
+            new BookMenu(bookService, new InputHelper(scanner)).searchByKeyword();
+        } finally {
+            System.setOut(previousOut);
+        }
+        check(searchOutput.toString(StandardCharsets.UTF_8).contains("S020"),
+                "BookMenu.searchByKeyword prints matching books");
 
         rejects(IllegalStateException.class, () -> sales.createInvoice("HD1", "KH001", employee,
                 Map.of("S001", 2, "S002", 2)));
