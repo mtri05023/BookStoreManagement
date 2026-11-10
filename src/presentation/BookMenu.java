@@ -3,6 +3,7 @@ package presentation;
 import business.BookService;
 import model.Book;
 import utility.InputHelper;
+import java.util.List;
 
 public class BookMenu {
     private final BookService bookService;
@@ -17,9 +18,10 @@ public class BookMenu {
             System.out.println("\n========== QUẢN LÝ SÁCH ==========");
             System.out.println("1. Thêm sách");
             System.out.println("2. Danh sách sách");
-            System.out.println("3. Tìm sách");
+            System.out.println("3. Tìm sách theo mã");
             System.out.println("4. Cập nhật sách");
             System.out.println("5. Xóa sách");
+            System.out.println("6. Tìm sách theo từ khóa");
             System.out.println("0. Quay lại");
 
             choice = input.readInt("Chọn: ");
@@ -31,6 +33,7 @@ public class BookMenu {
                     case 3 -> findBook();
                     case 4 -> updateBook();
                     case 5 -> deleteBook();
+                    case 6 -> searchByKeyword();
                     case 0 -> { }
                     default -> System.out.println("Lựa chọn không hợp lệ.");
                 }
@@ -44,18 +47,19 @@ public class BookMenu {
         String id = input.read("Mã sách: ");
         String title = input.read("Tên sách: ");
         String author = input.read("Tác giả: ");
+        String category = input.read("Thể loại: ");
         double price = input.readDouble("Giá: ");
         int quantity = input.readInt("Số lượng: ");
 
-        if (bookService.addBook(new Book(id, title, author, price, quantity)))
+        if (bookService.addBook(new Book(id, title, author, category, price, quantity)))
             System.out.println("Thêm sách thành công.");
         else
             System.out.println("Không thể thêm sách. Kiểm tra mã hoặc dữ liệu.");
     }
 
     public void showBooks() {
-        System.out.printf("%-8s %-25s %-20s %10s %6s%n",
-                "Mã", "Tên sách", "Tác giả", "Giá", "SL");
+        System.out.printf("%-8s %-25s %-20s %-12s %10s %6s%n",
+                "Mã", "Tên sách", "Tác giả", "Thể loại", "Giá", "SL");
         for (Book book : bookService.getBooks())
             System.out.println(book);
     }
@@ -63,6 +67,15 @@ public class BookMenu {
     public void findBook() {
         Book book = bookService.findBook(input.read("Nhập mã sách: "));
         System.out.println(book == null ? "Không tìm thấy." : book);
+    }
+
+    public void searchByKeyword() {
+        List<Book> found = bookService.searchBooks(input.read("Từ khóa (tên/tác giả/thể loại): "));
+        if (found.isEmpty()) {
+            System.out.println("Không tìm thấy sách phù hợp.");
+            return;
+        }
+        for (Book book : found) System.out.println(book);
     }
 
     public void updateBook() {
@@ -73,10 +86,11 @@ public class BookMenu {
         }
         String title = input.read("Tên mới: ");
         String author = input.read("Tác giả mới: ");
+        String category = input.read("Thể loại mới: ");
         double price = input.readDouble("Giá mới: ");
         int quantity = input.readInt("Số lượng mới: ");
 
-        System.out.println(bookService.updateBook(id, title, author, price, quantity)
+        System.out.println(bookService.updateBook(id, title, author, category, price, quantity)
                 ? "Cập nhật thành công." : "Cập nhật thất bại.");
     }
 
