@@ -26,14 +26,35 @@ public class Main {
         }
     }
 
+    /**
+     * Safely loads an existing store snapshot or seeds initial sample data on first run.
+     * Rejects missing read permissions, directories, empty files, and corrupt data without overwriting.
+     */
+    public static StoreState loadOrSeed(StoreFile storeFile) throws IOException {
+        Path path = storeFile.getPath();
+        boolean firstRun = Files.notExists(path);
+        if (!firstRun) {
+            if (Files.isDirectory(path)) {
+                throw new IOException("Đường dẫn là thư mục, không phải file: " + path.toAbsolutePath());
+            }
+            if (!Files.isReadable(path)) {
+                throw new IOException("Không có quyền đọc file: " + path.toAbsolutePath());
+            }
+            if (Files.size(path) == 0) {
+                throw new IOException("File rỗng: " + path.toAbsolutePath());
+            }
+        }
+        StoreState state = firstRun ? SampleData.create() : storeFile.load();
+        if (firstRun) storeFile.save(state);
+        return state;
+    }
+
     /** Reusable entry point for integration tests; the caller owns the Scanner. */
     public static int run(String[] args, Scanner scanner) {
         try {
             Path path = StoreConfig.resolveStoreFile(args);
             StoreFile storeFile = new StoreFile(path);
-            boolean firstRun = Files.notExists(path);
-            StoreState state = firstRun ? SampleData.create() : storeFile.load();
-            if (firstRun) storeFile.save(state);
+            StoreState state = loadOrSeed(storeFile);
             System.out.println("Dữ liệu: " + path.toAbsolutePath());
             BookService bookService = new BookService(state.getBooks());
             CustomerService customerService = new CustomerService(state.getCustomers());
