@@ -2,18 +2,31 @@ package utility;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.Objects;
 import java.util.Scanner;
 
 public class InputHelper {
     private final Scanner scanner;
 
     public InputHelper(Scanner scanner) {
-        this.scanner = scanner;
+        this.scanner = Objects.requireNonNull(scanner, "Scanner must not be null.");
     }
 
     public String read(String message) {
         System.out.print(message);
         return scanner.nextLine().trim();
+    }
+
+    public String readRequiredString(String message) {
+        return readRequiredString(message, "Vui lòng không để trống.");
+    }
+
+    public String readRequiredString(String message, String errorMessage) {
+        while (true) {
+            String value = read(message);
+            if (!value.isBlank()) return value;
+            System.out.println(errorMessage);
+        }
     }
 
     public int readInt(String message) {
@@ -23,6 +36,19 @@ public class InputHelper {
             } catch (NumberFormatException e) {
                 System.out.println("Vui lòng nhập số nguyên hợp lệ.");
             }
+        }
+    }
+
+    public int readInt(String message, int min, int max) {
+        if (min > max) {
+            throw new IllegalArgumentException("min (" + min + ") phải nhỏ hơn hoặc bằng max (" + max + ").");
+        }
+        while (true) {
+            int value = readInt(message);
+            if (value >= min && value <= max) {
+                return value;
+            }
+            System.out.println("Vui lòng nhập số trong khoảng [" + min + ", " + max + "].");
         }
     }
 
