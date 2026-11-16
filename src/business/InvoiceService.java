@@ -36,7 +36,7 @@ public class InvoiceService {
         if (employee == null) throw new IllegalArgumentException("Nhan vien khong co trong danh sach.");
         if (quantities == null || quantities.isEmpty()) throw new IllegalArgumentException("Gio hang rong.");
 
-        // chuan hoa gio hang (ma sach viet HOA, gop cac dong trung ma, chong tran so)
+        // chuan hoa gio hang 
         Map<String, Integer> cart = new LinkedHashMap<>();
         for (Map.Entry<String, Integer> entry : quantities.entrySet()) {
             String bookId = entry.getKey();
@@ -54,9 +54,6 @@ public class InvoiceService {
 
         Invoice invoice = new Invoice(id, customer, employee);
 
-            // dung ma sach (String) lam key vi String luon co equals/hashCode chuan.
-            //   - booksToUpdate : ma sach -> doi tuong Book can cap nhat ton kho
-            //   - remainingStock: ma sach -> so luong ton SAU khi ban
         Map<String, Book> booksToUpdate = new LinkedHashMap<>();
         Map<String, Integer> remainingStock = new LinkedHashMap<>();
 
@@ -73,11 +70,17 @@ public class InvoiceService {
         }
         invoice.complete();
 
-        // luu hoa don truoc. Kho hien tai nam trong bo nho, nen neu add that bai thi no nem loi truoc khi thay doi du lieu
+        // neu add that bai thi nem loi truoc khi thay doi du lieu
         invoices.add(invoice);
 
-        // Chi tru kho SAU KHI invoices.add thanh cong
         remainingStock.forEach((bookId, newQuantity) -> booksToUpdate.get(bookId).setQuantity(newQuantity));
+        // for (Map.Entry<String, Integer> entry : remainingStock.entrySet()) {
+            // String bookId = entry.getKey();
+
+            // Integer newQuantity = entry.getValue();
+
+            // booksToUpdate.get(bookId).setQuantity(newQuantity);
+        // }    
         return invoice;
     }
 

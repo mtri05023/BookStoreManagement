@@ -95,8 +95,7 @@ public class InvoiceMenu {
             }
         }
 
-        // Boc loi goi service bang try/catch.
-        // Bat loi tai day de bao ro la LAP HOA DON that bai, va khong de exception di len MainMenu / Main.
+        // Bat loi tai day de bao LAP HOA DON that bai, khong de exception di len MainMenu / Main.
         try {
             Invoice invoice = invoiceService.createInvoice(invoiceId, customer.getId(), employee.get(), cart);
             printInvoice(invoice);
