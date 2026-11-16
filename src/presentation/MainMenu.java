@@ -28,7 +28,50 @@ public class MainMenu {
         this.state = state;
         this.storeFile = storeFile;
     }
+    private business.StoreSession session;
+    private EmployeeMenu employeeMenu;
+    private InventoryMenu inventoryMenu;
+    private ReportMenu reportsMenu;
+    public MainMenu(business.StoreSession session, InputHelper input) {
+        this(null, null, null, new ReportService(session.state().getInvoices()), input, null, session.state(), null);
+        this.session = session;
+        var sales = new business.InvoiceService(state.getInvoices(), state.getBooks(), state.getCustomers(), state.getEmployees());
+        managedBooks = new BookMenu(session, input);
+        managedCustomers = new CustomerMenu(session, input, sales);
+        managedInvoices = new InvoiceMenu(session, input, sales);
+        employeeMenu = new EmployeeMenu(session, input);
+        inventoryMenu = new InventoryMenu(session, input);
+        reportsMenu = new ReportMenu(reportService, input);
+    }
+    private BookMenu managedBooks;
+    private CustomerMenu managedCustomers;
+    private InvoiceMenu managedInvoices;
+    private void showManaged() {
+        while (true) {
+            ConsoleView.optionsWithZero(StoreConfig.STORE_NAME, "Lưu và thoát", "Quản lý sách", "Quản lý khách hàng", "Lập hóa đơn",
+                    "Quản lý hóa đơn", "Thống kê doanh thu", "Quản lý nhân viên", "Quản lý tồn kho", "Lưu toàn bộ dữ liệu");
+            System.out.println("Chọn 0 để lưu và thoát. Các thao tác thay đổi được tự động lưu.");
+            int choice = input.readInt("Chọn: ");
+            try {
+                switch (choice) {
+                    case 0 -> { save(); System.out.println("Đã thoát chương trình."); return; }
+                    case 1 -> managedBooks.show();
+                    case 2 -> managedCustomers.show();
+                    case 3 -> managedInvoices.createInvoice();
+                    case 4 -> managedInvoices.manage();
+                    case 5 -> reportsMenu.show();
+                    case 6 -> employeeMenu.show();
+                    case 7 -> inventoryMenu.show();
+                    case 8 -> save();
+                    default -> System.out.println("Lựa chọn không hợp lệ.");
+                }
+            } catch (IOException | IllegalArgumentException | IllegalStateException e) {
+                System.out.println("Không thể hoàn tất thao tác: " + e.getMessage());
+            }
+        }
+    }
     public void show() {
+        if (session != null) { showManaged(); return; }
         int choice;
         do {
             System.out.println("\n======================================");
@@ -39,7 +82,7 @@ public class MainMenu {
             System.out.println("3. Lập hóa đơn");
             System.out.println("4. Xem hóa đơn");
             System.out.println("5. Thống kê doanh thu");
-            System.out.println("6. Danh sách người — mảng & đa hình (mẫu Leader)");
+            System.out.println("6. Quản lý khách hàng và nhân viên");
             System.out.println("7. Lưu toàn bộ dữ liệu text");
             System.out.println("0. Lưu và thoát");
             System.out.println("Thay đổi được giữ trên đĩa khi chọn 7 hoặc 0.");
@@ -75,6 +118,11 @@ public class MainMenu {
     }
 
     public void save() throws IOException {
+        if (session != null) {
+            session.save();
+            System.out.println("Lưu dữ liệu thành công!");
+            return;
+        }
         storeFile.save(state);
         System.out.println("Đã lưu: " + storeFile.getPath().toAbsolutePath());
     }

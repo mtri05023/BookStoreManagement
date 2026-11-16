@@ -11,6 +11,11 @@ public class InvoiceRepository implements IRepository<Invoice> {
 
     public InvoiceRepository() { invoices = new Invoice[4]; }
 
+    public void replaceAll(Invoice[] values) {
+        invoices = Arrays.copyOf(values, Math.max(4, values.length));
+        size = values.length;
+    }
+
     @Override
     public void add(Invoice invoice) {
         if (invoice == null) throw new IllegalArgumentException("Dữ liệu không được null.");
@@ -18,7 +23,7 @@ public class InvoiceRepository implements IRepository<Invoice> {
             throw new IllegalArgumentException("Mã đã tồn tại: " + invoice.getId());
         }
         if (size == invoices.length) invoices = Arrays.copyOf(invoices, invoices.length * 2);
-        invoice.complete();
+        if (!invoice.isCompleted()) throw new IllegalStateException("Chỉ lưu hóa đơn đã thanh toán; không tự thanh toán khi thêm vào repository.");
         invoices[size++] = invoice;
     }
 

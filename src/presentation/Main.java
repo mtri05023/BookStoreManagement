@@ -12,7 +12,10 @@ import utility.InputHelper;
 import utility.StoreConfig;
 import java.util.NoSuchElementException;
 import java.util.Scanner;
+import java.util.Base64;
 import java.io.IOException;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -20,14 +23,56 @@ public class Main {
     private Main() { }
 
     public static void main(String[] args) {
-        try (Scanner scanner = new Scanner(System.in)) {
-            int exitCode = run(args, scanner);
+        configureConsole();
+        try (Scanner scanner = new Scanner(System.in, StandardCharsets.UTF_8)) {
+            int exitCode = runInteractive(args, scanner);
             if (exitCode != 0) System.exit(exitCode);
         }
     }
 
+    private static void configureConsole() {
+        if (System.getProperty("os.name", "").startsWith("Windows")) {
+            try {
+                // Java launches child processes without a console on Windows.
+                // Attach to this JVM's console before changing its input/output code pages.
+                String setup = "Add-Type -TypeDefinition 'using System.Runtime.InteropServices; "
+                        + "public static class BookStoreConsole { "
+                        + "[DllImport(\"kernel32.dll\")] public static extern bool FreeConsole(); "
+                        + "[DllImport(\"kernel32.dll\")] public static extern bool AttachConsole(uint id); "
+                        + "[DllImport(\"kernel32.dll\")] public static extern bool SetConsoleCP(uint cp); "
+                        + "[DllImport(\"kernel32.dll\")] public static extern bool SetConsoleOutputCP(uint cp); }'; "
+                        + "[BookStoreConsole]::FreeConsole() | Out-Null; "
+                        + "[BookStoreConsole]::AttachConsole([uint32]::MaxValue) | Out-Null; "
+                        + "[BookStoreConsole]::SetConsoleCP(65001) | Out-Null; "
+                        + "[BookStoreConsole]::SetConsoleOutputCP(65001) | Out-Null";
+                String encodedSetup = Base64.getEncoder().encodeToString(
+                        setup.getBytes(StandardCharsets.UTF_16LE));
+                new ProcessBuilder("powershell.exe", "-NoProfile", "-NonInteractive",
+                        "-EncodedCommand", encodedSetup)
+                        .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                        .redirectError(ProcessBuilder.Redirect.DISCARD)
+                        .start().waitFor();
+            } catch (IOException e) {
+                // Redirected streams and non-Windows consoles still use UTF-8 below.
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        System.setOut(new PrintStream(System.out, true, StandardCharsets.UTF_8));
+        System.setErr(new PrintStream(System.err, true, StandardCharsets.UTF_8));
+    }
+
     /** Reusable entry point for integration tests; the caller owns the Scanner. */
     public static int run(String[] args, Scanner scanner) {
+        return run(args, scanner, false);
+    }
+
+    /** Current application flow. The original run overload retains the scripted integration API. */
+    public static int runInteractive(String[] args, Scanner scanner) {
+        return run(args, scanner, true);
+    }
+
+    private static int run(String[] args, Scanner scanner, boolean managed) {
         try {
             Path path = StoreConfig.resolveStoreFile(args);
             StoreFile storeFile = new StoreFile(path);
@@ -47,8 +92,8 @@ public class Main {
                     () -> state.getEmployees().findById(StoreConfig.DEFAULT_EMPLOYEE_ID), input);
             PersonService personService = new PersonService(state.getPeople(), state.getInvoices());
             PersonMenu personMenu = new PersonMenu(personService, input);
-            MainMenu menu = new MainMenu(bookMenu, customerMenu, invoiceMenu, reports, input,
-                    personMenu, state, storeFile);
+            MainMenu menu = managed ? new MainMenu(new business.StoreSession(state, storeFile), input)
+                    : new MainMenu(bookMenu, customerMenu, invoiceMenu, reports, input, personMenu, state, storeFile);
             try {
                 menu.show();
             } catch (NoSuchElementException e) {

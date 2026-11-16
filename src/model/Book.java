@@ -6,6 +6,8 @@ public class Book {
     private String author;
     private double price;
     private int quantity;
+    private String category = "Chưa phân loại";
+    private double purchasePrice;
 
     public Book(String id, String title, String author, double price, int quantity) {
         this.id = ModelChecks.id(id);
@@ -16,6 +18,21 @@ public class Book {
         this.quantity = quantity;
     }
 
+    public Book(String id, String title, String author, String category,
+                double purchasePrice, double price, int quantity) {
+        this(id, title, author, price, quantity);
+        this.category = ModelChecks.text(category, "Thể loại");
+        if (!Double.isFinite(purchasePrice) || purchasePrice < 0)
+            throw new IllegalArgumentException("Giá nhập phải hữu hạn và không âm.");
+        this.purchasePrice = purchasePrice;
+    }
+    public String getCategory() { return category; }
+    public double getPurchasePrice() { return purchasePrice; }
+    public void setCategory(String category) { this.category = ModelChecks.text(category, "Thể loại"); }
+    public void setPurchasePrice(double value) {
+        if (!Double.isFinite(value) || value < 0) throw new IllegalArgumentException("Giá nhập phải hữu hạn và không âm.");
+        purchasePrice = value;
+    }
     public String getId() { return id; }
     public String getTitle() { return title; }
     public String getAuthor() { return author; }

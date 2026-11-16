@@ -18,11 +18,16 @@ public class PersonMenu {
 
     public void show() {
         while (true) {
-            System.out.println("\n=== DANH SÁCH NGƯỜI — MẪU MẢNG & ĐA HÌNH ===");
-            System.out.println("1. Xuất danh sách  2. Nhập mới n người (thay danh sách)");
-            System.out.println("3. Thêm 1 người   4. Thêm k người");
-            System.out.println("5. Sửa theo mã    6. Xóa theo mã");
-            System.out.println("7. Tìm nhiều khóa 8. Thống kê theo vai trò  0. Quay lại");
+            System.out.println("\n=== QUẢN LÝ KHÁCH HÀNG VÀ NHÂN VIÊN ===");
+            System.out.println("1. Xem danh sách khách hàng và nhân viên");
+            System.out.println("2. Nhập lại toàn bộ danh sách (thay danh sách hiện tại)");
+            System.out.println("3. Thêm một khách hàng hoặc nhân viên");
+            System.out.println("4. Thêm nhiều khách hàng và nhân viên");
+            System.out.println("5. Sửa thông tin theo mã");
+            System.out.println("6. Xóa khách hàng hoặc nhân viên theo mã");
+            System.out.println("7. Tìm kiếm theo mã, tên, điện thoại hoặc chức vụ");
+            System.out.println("8. Thống kê số lượng khách hàng và nhân viên");
+            System.out.println("0. Quay lại");
             int choice = input.readInt("Chọn: ");
             try {
                 switch (choice) {

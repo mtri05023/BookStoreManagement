@@ -99,7 +99,8 @@ public final class PersonDirectory implements ICrudRepository<Person> {
             String contact = person instanceof Customer customer ? customer.getPhone()
                     : ((Employee) person).getPosition();
             if (key.isEmpty() || matches(person.getId(), key, exact)
-                    || matches(person.getName(), key, exact) || matches(contact, key, exact)) {
+                    || matches(person.getName(), key, exact) || matches(contact, key, exact)
+                    || (person instanceof Employee employee && matches(employee.getPhone(), key, exact))) {
                 matches[count++] = person;
             }
         }

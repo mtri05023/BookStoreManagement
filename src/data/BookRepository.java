@@ -11,6 +11,11 @@ public class BookRepository implements ICrudRepository<Book> {
 
     public BookRepository() { books = new Book[4]; }
 
+    public void replaceAll(Book[] values) {
+        books = Arrays.copyOf(values, Math.max(4, values.length));
+        size = values.length;
+    }
+
     @Override
     public void add(Book book) {
         if (book == null) throw new IllegalArgumentException("Dữ liệu không được null.");
