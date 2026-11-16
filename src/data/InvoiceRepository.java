@@ -13,9 +13,9 @@ public class InvoiceRepository implements IRepository<Invoice> {
 
     @Override
     public void add(Invoice invoice) {
-        if (invoice == null) throw new IllegalArgumentException("Dữ liệu không được null.");
+        if (invoice == null) throw new IllegalArgumentException("Du lieu phai khac null.");
         if (findById(invoice.getId()) != null) {
-            throw new IllegalArgumentException("Mã đã tồn tại: " + invoice.getId());
+            throw new IllegalArgumentException("Ma da ton tai: " + invoice.getId());
         }
         if (size == invoices.length) invoices = Arrays.copyOf(invoices, invoices.length * 2);
         invoice.complete();

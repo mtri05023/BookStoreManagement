@@ -44,16 +44,16 @@ public class Invoice {
     public List<InvoiceDetail> getDetails() { return List.copyOf(details); }
 
     public void addDetail(InvoiceDetail detail) {
-        if (completed) throw new IllegalStateException("Hóa đơn đã hoàn tất.");
+        if (completed) throw new IllegalStateException("Hoa don hoan tat.");
         Objects.requireNonNull(detail);
         if (!Double.isFinite(getTotal() + detail.getAmount())) {
-            throw new IllegalArgumentException("Tổng hóa đơn vượt giới hạn.");
+            throw new IllegalArgumentException("Tong hoa don khong hop le.");
         }
         details.add(detail);
     }
 
     public void complete() {
-        if (details.isEmpty()) throw new IllegalStateException("Hóa đơn không được rỗng.");
+        if (details.isEmpty()) throw new IllegalStateException("Hoa don khong duoc rong.");
         completed = true;
     }
 
