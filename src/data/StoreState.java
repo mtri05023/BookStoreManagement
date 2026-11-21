@@ -7,6 +7,7 @@ public class StoreState {
     private final CustomerRepository customers;
     private final EmployeeRepository employees;
     private final InvoiceRepository invoices;
+    private final SupplierRepository suppliers;
 
     private String[] stockEvents = new String[4];
     private int eventCount;
@@ -25,6 +26,7 @@ public class StoreState {
         people.initialize(snapshot.getPeople().toArray());
         books.replaceAll(snapshot.getBooks().getAll().toArray(new model.Book[0]));
         invoices.replaceAll(snapshot.getInvoices().getAll().toArray(new model.Invoice[0]));
+        suppliers.replaceAll(snapshot.getSuppliers().getAll().toArray(new model.Supplier[0]));
         stockEvents = java.util.Arrays.copyOf(snapshot.getStockEvents(), Math.max(4, snapshot.eventCount));
         eventCount = snapshot.eventCount;
         lowStockThreshold = snapshot.lowStockThreshold;
@@ -35,6 +37,7 @@ public class StoreState {
         customers = new CustomerRepository(people);
         employees = new EmployeeRepository(people);
         invoices = new InvoiceRepository();
+        suppliers = new SupplierRepository();
     }
 
     public PersonDirectory getPeople() { return people; }
@@ -42,4 +45,5 @@ public class StoreState {
     public CustomerRepository getCustomers() { return customers; }
     public EmployeeRepository getEmployees() { return employees; }
     public InvoiceRepository getInvoices() { return invoices; }
+    public SupplierRepository getSuppliers() { return suppliers; }
 }

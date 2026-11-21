@@ -16,8 +16,22 @@ public class InputHelper {
         return scanner.nextLine().trim();
     }
 
+    public char[] readPassword(String message) {
+        java.io.Console console = System.console();
+        if (console != null) {
+            System.out.print(message);
+            System.out.flush();
+            char[] value = console.readPassword();
+            if (value == null) throw new java.util.NoSuchElementException("Đã kết thúc nhập liệu.");
+            return value;
+        }
+        System.out.print(message + " (ký tự có thể hiển thị khi chạy trong IDE): ");
+        if (!scanner.hasNextLine()) throw new java.util.NoSuchElementException("Đã kết thúc nhập liệu.");
+        return scanner.nextLine().toCharArray();
+    }
+
     public static String normalizeCode(String prefix, String value) {
-        if (!java.util.Set.of("S", "NV", "KH", "HD").contains(prefix))
+        if (!java.util.Set.of("S", "NV", "KH", "HD", "NCC").contains(prefix))
             throw new IllegalArgumentException("Tiền tố mã không hợp lệ.");
         String digits = value.trim().toUpperCase(java.util.Locale.ROOT);
         if (digits.startsWith(prefix)) digits = digits.substring(prefix.length());

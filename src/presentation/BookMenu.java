@@ -46,11 +46,30 @@ public class BookMenu {
         } while (choice != 0);
     }
 
+    public void showForEmployee() {
+        while (true) {
+            ConsoleView.options("SÁCH", "Danh sách", "Tìm theo mã", "Tìm theo tên hoặc từ khóa", "Lọc theo giá", "Sắp xếp");
+            int choice = input.readInt("Chọn: ");
+            try {
+                switch (choice) {
+                    case 0 -> { return; }
+                    case 1 -> showBooks();
+                    case 2 -> findBook();
+                    case 3 -> { ConsoleView.books(bookService.search(input.read("Từ khóa: "))); }
+                    case 4 -> ConsoleView.books(bookService.filterPrice(input.readDouble("Giá thấp nhất: "), input.readDouble("Giá cao nhất: ")));
+                    case 5 -> ConsoleView.books(bookService.sorted(input.readInt(
+                            "Chọn tiêu chí sắp xếp (1 - Tên sách A-Z, 2 - Giá bán tăng dần, 3 - Số lượng tồn kho tăng dần): ")));
+                    default -> System.out.println("Lựa chọn không hợp lệ.");
+                }
+            } catch (IllegalArgumentException | IllegalStateException e) { System.out.println(e.getMessage()); }
+        }
+    }
+
     private void showManaged() {
         while (true) {
             ConsoleView.options("QUẢN LÝ SÁCH", "Thêm sách", "Hiển thị danh sách", "Tìm theo mã",
                     "Tìm theo tên hoặc từ khóa", "Sửa thông tin", "Xóa sách",
-                    "Lọc theo khoảng giá", "Xem tồn kho");
+                    "Lọc theo khoảng giá", "Xem tồn kho", "Thêm nhiều sách");
             int choice = input.readInt("Chọn: ");
             try {
                 switch (choice) {
@@ -64,14 +83,23 @@ public class BookMenu {
                         });
                         System.out.println("Thêm sách thành công! Đã lưu dữ liệu.");
                     }
-                    case 2, 8 -> ConsoleView.books(bookService.getBooks().toArray(new Book[0]));
+                    case 2, 8 -> {
+                        Book[] result = bookService.getBooks().toArray(new Book[0]);
+                        ConsoleView.books(result);
+                        System.out.println(result.length == 0 ? "Danh sách sách hiện đang trống." : "Đã hiển thị toàn bộ sách.");
+                    }
                     case 3 -> {
                         String id = input.readExistingCode("S", "Mã sách: ");
                         Book b = bookService.findBook(id);
                         if (b == null) System.out.println("Không tìm thấy sách có mã " + id);
-                        else ConsoleView.books(new Book[] { b });
+                        else { ConsoleView.books(new Book[] { b }); System.out.println("Tìm sách theo mã thành công."); }
                     }
-                    case 4 -> ConsoleView.books(bookService.search(input.read("Tên hoặc từ khóa: ")));
+                    case 4 -> {
+                        Book[] result = bookService.search(input.read("Tên hoặc từ khóa: "));
+                        ConsoleView.books(result);
+                        System.out.println(result.length == 0 ? "Không có sách khớp với từ khóa."
+                                : "Tìm kiếm thành công: " + result.length + " sách.");
+                    }
                     case 5 -> {
                         String id = input.readExistingCode("S", "Mã sách cần sửa: ");
                         Book old = bookService.findBook(id);
@@ -86,7 +114,32 @@ public class BookMenu {
                         session.change(() -> session.deleteBook(id));
                         System.out.println("Xóa sách thành công! Đã lưu dữ liệu.");
                     }
-                    case 7 -> ConsoleView.books(bookService.filterPrice(input.readDouble("Giá thấp nhất: "), input.readDouble("Giá cao nhất: ")));
+                    case 7 -> {
+                        Book[] result = bookService.filterPrice(input.readDouble("Giá thấp nhất: "), input.readDouble("Giá cao nhất: "));
+                        ConsoleView.books(result);
+                        System.out.println(result.length == 0 ? "Không có sách trong khoảng giá đã chọn."
+                                : "Lọc khoảng giá thành công: " + result.length + " sách.");
+                    }
+                    case 9 -> {
+                        int count = input.readInt("Số lượng sách cần thêm (1..1000): ");
+                        if (count < 1 || count > 1000)
+                            throw new IllegalArgumentException("Số lượng sách phải trong 1..1000.");
+                        Book[] batch = new Book[count];
+                        for (int i = 0; i < count; i++) {
+                            System.out.println("Sách thứ " + (i + 1) + "/" + count);
+                            String id = input.readNewCode("S", "Mã sách: ");
+                            if (bookService.findBook(id) != null)
+                                throw new IllegalArgumentException("Không thể thêm danh sách: mã sách " + id + " đã tồn tại.");
+                            batch[i] = readBook(id, 0);
+                        }
+                        session.change(() -> {
+                            for (Book book : batch) {
+                                if (!bookService.addBook(book))
+                                    throw new IllegalArgumentException("Không thể thêm sách " + book.getId() + ".");
+                            }
+                        });
+                        System.out.println("Đã thêm " + count + " sách thành công. Đã lưu dữ liệu.");
+                    }
                     default -> System.out.println("Lựa chọn không hợp lệ.");
                 }
             } catch (IllegalArgumentException | IllegalStateException e) { System.out.println(e.getMessage()); }
@@ -99,7 +152,7 @@ public class BookMenu {
         String category = existing == null ? "Chưa phân loại" : existing.getCategory();
         double cost = input.readDouble("Giá nhập (VNĐ, 0 nếu chưa có): ");
         double price = input.readDouble("Giá bán (VNĐ): ");
-        if (bookService.findBook(id) == null) quantity = input.readInt("Tồn kho ban đầu: ");
+        if (bookService.findBook(id) == null) quantity = input.readInt("Số sách cần thêm vào kho (quyển): ");
         return new Book(id, title, author, category, cost, price, quantity);
     }
     public void addBook() {

@@ -5,6 +5,7 @@ import model.Customer;
 import model.Employee;
 import model.Invoice;
 import model.InvoiceDetail;
+import model.Supplier;
 import utility.StoreConfig;
 import java.io.IOException;
 import java.time.LocalDate;
@@ -36,6 +37,8 @@ public final class StoreTextCodec {
         for (Employee employee : state.getEmployees().getAll()) {
             lines.add(String.join("|", "EMPLOYEE", employee.getId(), employee.getName(), employee.getPosition(), employee.getPhone()));
         }
+        for (Supplier supplier : state.getSuppliers().getAll())
+            lines.add(String.join("|", "SUPPLIER", supplier.getId(), supplier.getName(), supplier.getPhone()));
         int details = 0;
         for (Invoice invoice : state.getInvoices().getAll()) {
             if (!invoice.isCompleted()) throw new IllegalStateException("File bán hàng chỉ lưu hóa đơn đã thanh toán.");
@@ -54,24 +57,30 @@ public final class StoreTextCodec {
         lines.add(String.join("|", "END", Integer.toString(state.getBooks().getAll().size()),
                 Integer.toString(state.getCustomers().getAll().size()),
                 Integer.toString(state.getEmployees().getAll().size()),
-                Integer.toString(state.getInvoices().getAll().size()), Integer.toString(details), Integer.toString(state.getStockEvents().length)));
+                Integer.toString(state.getInvoices().getAll().size()), Integer.toString(details), Integer.toString(state.getStockEvents().length),
+                Integer.toString(state.getSuppliers().getAll().size())));
         return lines;
     }
 
     public static StoreState decode(List<String> lines) throws IOException {
-        if (lines.size() < 2 || !(lines.get(0).equals("VERSION|1") || lines.get(0).equals("VERSION|2") || lines.get(0).equals("VERSION|3"))) {
+        if (lines.size() < 2 || !(lines.get(0).equals("VERSION|1") || lines.get(0).equals("VERSION|2")
+                || lines.get(0).equals("VERSION|3") || lines.get(0).equals("VERSION|4"))) {
             throw new IOException("File rỗng, thiếu VERSION hoặc phiên bản không được hỗ trợ.");
         }
         boolean legacy = lines.get(0).equals("VERSION|1");
-        boolean timestamps = lines.get(0).equals("VERSION|3");
+        boolean version4 = lines.get(0).equals("VERSION|4");
+        boolean timestamps = lines.get(0).equals("VERSION|3") || version4;
         List<Row> rows = new ArrayList<>();
         for (int i = 1; i < lines.size() - 1; i++) {
             String[] fields = lines.get(i).split("\\|", -1);
             int expected = switch (fields[0]) {
                 case "BOOK" -> legacy ? 6 : 8;
                 case "DETAIL", "STOCK" -> 6;
+                case "RECEIPT" -> 8;
+                case "SOURCE" -> 4;
                 case "CUSTOMER" -> 4;
                 case "EMPLOYEE" -> legacy ? 4 : 5;
+                case "SUPPLIER" -> 4;
                 case "INVOICE" -> timestamps ? 12 : 9;
                 case "SETTING" -> 3;
                 default -> -1;
@@ -101,11 +110,25 @@ public final class StoreTextCodec {
                     case "CUSTOMER" -> state.getCustomers().add(new Customer(f[1], f[2], f[3]));
                     case "EMPLOYEE" -> state.getEmployees().add(legacy || f[4].isEmpty()
                             ? new Employee(f[1], f[2], f[3]) : new Employee(f[1], f[2], f[4], f[3]));
+                    case "SUPPLIER" -> state.getSuppliers().add(new Supplier(f[1], f[2], f[3]));
+                    case "SOURCE" -> {
+                        if (state.getBooks().findById(f[1]) == null || state.getSuppliers().findById(f[2]) == null || f[3].isBlank())
+                            throw new IllegalArgumentException("Nguồn cung sách không hợp lệ.");
+                        state.addStockEvent(String.join("|", f));
+                    }
                     case "STOCK" -> {
                         if (legacy) throw new IllegalArgumentException("STOCK chỉ có ở phiên bản 2.");
                         LocalDate.parse(f[1]);
                         if (f[2].isBlank() || Integer.parseInt(f[3]) < 0 || Integer.parseInt(f[4]) < 0 || f[5].isBlank())
                             throw new IllegalArgumentException("Nhật ký kho không hợp lệ.");
+                        state.addStockEvent(String.join("|", f));
+                    }
+                    case "RECEIPT" -> {
+                        if (!version4) throw new IllegalArgumentException("RECEIPT chỉ có ở phiên bản 4.");
+                        LocalDate.parse(f[1]);
+                        if (f[2].isBlank() || Integer.parseInt(f[3]) < 0 || Integer.parseInt(f[4]) <= Integer.parseInt(f[3])
+                                || f[5].isBlank() || f[6].isBlank() || f[7].isBlank())
+                            throw new IllegalArgumentException("Nhật ký nhập hàng không hợp lệ.");
                         state.addStockEvent(String.join("|", f));
                     }
                     case "INVOICE" -> {
@@ -151,18 +174,20 @@ public final class StoreTextCodec {
             }
         }
         try {
+            if (!version4 && state.getSuppliers().getAll().isEmpty()) SampleData.addDefaultSuppliers(state);
             for (Invoice invoice : drafts.values()) {
                 invoice.restorePaidAt(paidTimes.get(invoice.getId()));
                 state.getInvoices().add(invoice);
             }
             String[] end = lines.get(lines.size() - 1).split("\\|", -1);
-            if ((!legacy && !hasThreshold) || end.length != (legacy ? 6 : 7) || !end[0].equals("END")
+            if ((!legacy && !hasThreshold) || end.length != (version4 ? 8 : legacy ? 6 : 7) || !end[0].equals("END")
                     || Integer.parseInt(end[1]) != state.getBooks().getAll().size()
                     || Integer.parseInt(end[2]) != state.getCustomers().getAll().size()
                     || Integer.parseInt(end[3]) != state.getEmployees().getAll().size()
                     || Integer.parseInt(end[4]) != state.getInvoices().getAll().size()
                     || Integer.parseInt(end[5]) != detailCount
-                    || (!legacy && Integer.parseInt(end[6]) != state.getStockEvents().length)) {
+                    || (!legacy && Integer.parseInt(end[6]) != state.getStockEvents().length)
+                    || (version4 && Integer.parseInt(end[7]) != state.getSuppliers().getAll().size())) {
                 throw new IllegalArgumentException("Thiếu END hoặc số bản ghi không khớp.");
             }
         } catch (RuntimeException e) {

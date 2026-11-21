@@ -5,6 +5,7 @@ import business.StoreSession;
 import model.Book;
 import utility.InputHelper;
 import java.math.BigDecimal;
+import java.util.LinkedHashSet;
 
 public final class InventoryMenu {
     private final StoreSession session;
@@ -17,7 +18,7 @@ public final class InventoryMenu {
         while (true) {
             int threshold = session.state().getLowStockThreshold();
             ConsoleView.options("QUẢN LÝ TỒN KHO (ngưỡng cảnh báo: " + threshold + ")", "Xem toàn bộ tồn kho",
-                    "Tìm theo mã", "Tìm theo tên", "Nhập thêm sách", "Điều chỉnh tồn kho (có lý do)",
+                    "Tìm theo mã", "Tìm theo tên", "Nhập hàng từ nhà cung cấp", "Điều chỉnh tồn kho (có lý do)",
                     "Sách sắp hết hàng", "Sách đã hết hàng", "Giá trị tồn kho", "Đổi ngưỡng cảnh báo");
             int choice = input.readInt("Chọn: ");
             try {
@@ -29,17 +30,49 @@ public final class InventoryMenu {
                         if (b == null) throw new IllegalArgumentException("Không tìm thấy sách: " + id);
                         display(new Book[] { b });
                     }
-                    case 3 -> display(books.search(input.read("Tên sách: ")));
-                    case 4, 5 -> {
+                    case 3 -> {
+                        Book[] result = books.search(input.read("Tên sách: "));
+                        display(result);
+                        System.out.println(result.length == 0 ? "Không tìm thấy sách theo tên."
+                                : "Tìm tồn kho theo tên thành công: " + result.length + " sách.");
+                    }
+                    case 4 -> {
+                        if (session.state().getSuppliers().getAll().isEmpty())
+                            throw new IllegalStateException("Chưa có nhà cung cấp. Hãy thêm nhà cung cấp trước khi nhập hàng.");
                         String id = input.readExistingCode("S", "Mã sách: ");
-                        int quantity = input.readInt(choice == 4 ? "Số lượng nhập thêm: " : "Số lượng thực tế sau điều chỉnh: ");
+                        Book book = books.findBook(id);
+                        if (book == null) throw new IllegalArgumentException("Không tìm thấy sách: " + id);
+                        System.out.println("Nhà cung cấp hiện có:");
+                        session.state().getSuppliers().getAll().forEach(System.out::println);
+                        String supplierId = input.readExistingCode("NCC", "Mã nhà cung cấp: ");
+                        if (session.state().getSuppliers().findById(supplierId) == null)
+                            throw new IllegalArgumentException("Không tìm thấy nhà cung cấp: " + supplierId);
+                        int quantity = input.readInt("Số lượng nhập thêm: ");
                         String reason = input.read("Lý do: ");
                         if (!input.read("Gõ DONGY để xác nhận: ").equals("DONGY")) { System.out.println("Đã hủy thao tác kho."); break; }
-                        session.change(() -> session.stock(id, quantity, choice == 4, reason));
-                        System.out.println((choice == 4 ? "Nhập hàng" : "Điều chỉnh tồn kho") + " thành công! Đã lưu dữ liệu.");
+                        session.change(() -> session.receiveStock(id, quantity, supplierId, reason));
+                        System.out.println("Nhập hàng từ nhà cung cấp thành công! Đã lưu dữ liệu.");
                     }
-                    case 6 -> display(books.getBooks().stream().filter(b -> b.getQuantity() > 0 && b.getQuantity() <= threshold).toArray(Book[]::new));
-                    case 7 -> display(books.getBooks().stream().filter(b -> b.getQuantity() == 0).toArray(Book[]::new));
+                    case 5 -> {
+                        String id = input.readExistingCode("S", "Mã sách: ");
+                        Book book = books.findBook(id);
+                        if (book == null) throw new IllegalArgumentException("Không tìm thấy sách: " + id);
+                        int quantity = input.readInt("Số lượng thực tế sau điều chỉnh: ");
+                        String reason = input.read("Lý do: ");
+                        if (!input.read("Gõ DONGY để xác nhận: ").equals("DONGY")) { System.out.println("Đã hủy thao tác kho."); break; }
+                        session.change(() -> session.stock(id, quantity, false, reason));
+                        System.out.println("Điều chỉnh tồn kho thành công! Đã lưu dữ liệu.");
+                    }
+                    case 6 -> {
+                        Book[] result = books.getBooks().stream().filter(b -> b.getQuantity() > 0 && b.getQuantity() <= threshold).toArray(Book[]::new);
+                        display(result);
+                        System.out.println(result.length == 0 ? "Không có sách sắp hết hàng." : "Đã tìm thấy " + result.length + " sách sắp hết hàng.");
+                    }
+                    case 7 -> {
+                        Book[] result = books.getBooks().stream().filter(b -> b.getQuantity() == 0).toArray(Book[]::new);
+                        display(result);
+                        System.out.println(result.length == 0 ? "Không có sách hết hàng." : "Có " + result.length + " sách hết hàng.");
+                    }
                     case 8 -> {
                         BigDecimal cost = BigDecimal.ZERO, retail = BigDecimal.ZERO;
                         int unknown = 0;
@@ -50,6 +83,7 @@ public final class InventoryMenu {
                         }
                         System.out.printf("Giá trị theo giá nhập đã khai báo: %,.0f VNĐ%nGiá trị theo giá bán: %,.0f VNĐ%n", cost, retail);
                         if (unknown > 0) System.out.println("Có " + unknown + " đầu sách chưa khai báo giá nhập; tổng giá nhập chưa đầy đủ.");
+                        System.out.println("Đã thống kê giá trị tồn kho thành công.");
                     }
                     case 9 -> {
                         int value = input.readInt("Ngưỡng cảnh báo mới (>=0): ");
@@ -62,9 +96,42 @@ public final class InventoryMenu {
             } catch (IllegalArgumentException | IllegalStateException e) { System.out.println(e.getMessage()); }
         }
     }
+    public void showForEmployee() {
+        business.PermissionService.require(business.PermissionService.Permission.VIEW_INVENTORY);
+        display(books.getBooks().toArray(new Book[0]));
+    }
     private void display(Book[] values) {
         int threshold = session.state().getLowStockThreshold();
-        ConsoleView.books(values);
-        for (Book b : values) System.out.println(b.getId() + ": " + (b.getQuantity() == 0 ? "Hết hàng" : b.getQuantity() <= threshold ? "Sắp hết" : "Còn hàng"));
+        System.out.println(fit("Mã", 8) + " | " + fit("Tên sách", 28) + " | " + fit("Tác giả", 24)
+                + " | " + String.format("%10s", "Giá bán") + " | " + String.format("%8s", "Tồn kho")
+                + " | " + fit("Nhà cung cấp", 28) + " | " + "Trạng thái");
+        System.out.println("-".repeat(8) + "-+-" + "-".repeat(28) + "-+-" + "-".repeat(24)
+                + "-+-" + "-".repeat(10) + "-+-" + "-".repeat(8) + "-+-" + "-".repeat(28) + "-+-" + "-".repeat(10));
+        for (Book b : values) {
+            String status = b.getQuantity() == 0 ? "Hết hàng" : b.getQuantity() <= threshold ? "Sắp hết" : "Còn hàng";
+            String suppliers = suppliersForBook(b.getId());
+            System.out.println(fit(b.getId(), 8) + " | " + fit(b.getTitle(), 28) + " | " + fit(b.getAuthor(), 24)
+                    + " | " + String.format("%10.0f", b.getPrice()) + " | " + String.format("%8d", b.getQuantity())
+                    + " | " + fit(suppliers, 28) + " | " + fit(status, 10));
+        }
+        System.out.println(values.length == 0 ? "Không có sách tồn kho phù hợp." : "Đã hiển thị tồn kho của " + values.length + " sách.");
+    }
+
+    private String fit(String value, int width) {
+        String text = value == null ? "" : value;
+        if (text.length() > width) text = text.substring(0, width - 1) + "…";
+        return String.format("%-" + width + "s", text);
+    }
+
+    private String suppliersForBook(String bookId) {
+        LinkedHashSet<String> names = new LinkedHashSet<>();
+        for (String row : session.state().getStockEvents()) {
+            String[] fields = row.split("\\|", -1);
+            if (fields.length == 4 && fields[0].equals("SOURCE") && fields[1].equalsIgnoreCase(bookId))
+                names.add(fields[3]);
+            else if (fields.length == 8 && fields[0].equals("RECEIPT") && fields[2].equalsIgnoreCase(bookId))
+                names.add(fields[6]);
+        }
+        return names.isEmpty() ? "Chưa ghi nhận" : String.join(", ", names);
     }
 }

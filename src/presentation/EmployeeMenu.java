@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 
 /** Employee-only view of the shared, polymorphic Person[] directory. */
 public final class EmployeeMenu {
+    private static final String[] POSITIONS = {"Quản lý", "Thu ngân"};
     private final StoreSession session;
     private final InputHelper input;
     private final PersonService people;
@@ -20,22 +21,52 @@ public final class EmployeeMenu {
         String id = input.readExistingCode("NV", "Mã nhân viên: ");
         Employee e = session.state().getEmployees().findById(id);
         if (e == null) throw new IllegalArgumentException("Không tìm thấy nhân viên có mã " + id);
+        System.out.println("Đã tìm thấy nhân viên: " + e.getId() + " - " + e.getName());
         return e;
     }
     private Employee readEmployee(String id) {
-        return new Employee(id, input.read("Họ tên: "), input.read("Điện thoại: "), input.read("Chức vụ: "));
+        String name = input.read("Họ tên: ");
+        String phone = readPhone();
+        return new Employee(id, name, phone, readPosition());
+    }
+    private String readPhone() {
+        while (true) {
+            String phone = input.read("Điện thoại (10 chữ số, bắt đầu bằng 0): ");
+            if (phone.matches("0[0-9]{9}")) return phone;
+            System.out.println("Số điện thoại không hợp lệ. Hãy nhập đúng 10 chữ số và bắt đầu bằng 0.");
+        }
+    }
+    private String readPosition() {
+        System.out.println("Chọn chức vụ:");
+        for (int i = 0; i < POSITIONS.length; i++) System.out.println((i + 1) + ". " + POSITIONS[i]);
+        while (true) {
+            int choice = input.readInt("Chức vụ: ");
+            if (choice >= 1 && choice <= POSITIONS.length) return POSITIONS[choice - 1];
+            System.out.println("Lựa chọn không hợp lệ. Hãy chọn từ 1 đến " + POSITIONS.length + ".");
+        }
+    }
+    private void ensureSingleManager(Employee[] proposed, String replacingId) {
+        int managers = 0;
+        for (Employee current : session.state().getEmployees().getAll()) {
+            if ((replacingId == null || !current.getId().equalsIgnoreCase(replacingId))
+                    && current.getPosition().equalsIgnoreCase("Quản lý")) managers++;
+        }
+        for (Employee employee : proposed)
+            if (employee.getPosition().equalsIgnoreCase("Quản lý")) managers++;
+        if (managers > 1) throw new IllegalArgumentException("Cửa hàng chỉ được có một quản lý.");
     }
     public void show() {
         while (true) {
             ConsoleView.options("QUẢN LÝ NHÂN VIÊN", "Thêm nhân viên", "Hiển thị danh sách", "Tìm theo mã",
                     "Tìm theo tên", "Tìm theo điện thoại", "Tìm theo chức vụ", "Sửa thông tin", "Xóa nhân viên",
-                    "Thống kê theo chức vụ");
+                    "Thống kê theo chức vụ", "Thêm nhiều nhân viên");
             int choice = input.readInt("Chọn: ");
             try {
                 switch (choice) {
                     case 0 -> { return; }
                     case 1 -> {
                         Employee e = readEmployee(input.readNewCode("NV", "Mã nhân viên: "));
+                        ensureSingleManager(new Employee[] { e }, null);
                         session.change(() -> people.add(e));
                         System.out.println("Thêm nhân viên thành công! Đã lưu dữ liệu.");
                     }
@@ -44,7 +75,7 @@ public final class EmployeeMenu {
                         for (Person p : people.toArray()) if (p.getRole().equals("Employee")) { System.out.println(p); count++; }
                         System.out.println("Số nhân viên: " + count);
                     }
-                    case 3 -> System.out.println(requireEmployee());
+                    case 3 -> System.out.println("Tìm nhân viên theo mã thành công:\n" + requireEmployee());
                     case 4, 5, 6 -> {
                         String key = input.read("Từ khóa: ").toLowerCase(java.util.Locale.ROOT);
                         int count = 0;
@@ -53,10 +84,12 @@ public final class EmployeeMenu {
                             if (value.toLowerCase(java.util.Locale.ROOT).contains(key)) { System.out.println(e); count++; }
                         }
                         System.out.println("Số nhân viên tìm thấy: " + count);
+                        System.out.println(count == 0 ? "Không tìm thấy nhân viên phù hợp." : "Tìm kiếm nhân viên thành công.");
                     }
                     case 7 -> {
                         Employee e = requireEmployee();
                         Employee replacement = readEmployee(e.getId());
+                        ensureSingleManager(new Employee[] { replacement }, e.getId());
                         session.change(() -> { if (!people.updateById(e.getId(), replacement)) throw new IllegalStateException("Không tìm thấy nhân viên."); });
                         System.out.println("Cập nhật nhân viên thành công! Đã lưu dữ liệu.");
                     }
@@ -70,6 +103,20 @@ public final class EmployeeMenu {
                         for (Employee e : session.state().getEmployees().getAll()) counts.merge(e.getPosition(), 1, Integer::sum);
                         if (counts.isEmpty()) System.out.println("Chưa có nhân viên.");
                         counts.forEach((role, count) -> System.out.println(role + ": " + count));
+                        if (!counts.isEmpty()) System.out.println("Thống kê nhân viên theo chức vụ thành công.");
+                    }
+                    case 10 -> {
+                        int n = input.readInt("Số lượng nhân viên cần thêm (1..1000): ");
+                        if (n < 1 || n > 1000) throw new IllegalArgumentException("Số lượng phải trong 1..1000.");
+                        Person[] batch = new Person[n];
+                        for (int i = 0; i < n; i++) {
+                            System.out.println("Nhân viên thứ " + (i + 1) + "/" + n);
+                            batch[i] = readEmployee(input.readNewCode("NV", "Mã nhân viên: "));
+                        }
+                        Employee[] employees = java.util.Arrays.stream(batch).map(Employee.class::cast).toArray(Employee[]::new);
+                        ensureSingleManager(employees, null);
+                        session.change(() -> people.addAll(batch));
+                        System.out.println("Đã thêm " + n + " nhân viên vào danh sách. Đã lưu dữ liệu.");
                     }
                     default -> System.out.println("Lựa chọn không hợp lệ.");
                 }

@@ -18,6 +18,7 @@ public class PersonService {
     }
 
     public void initialize(Person[] initialPeople) {
+        PermissionService.require(PermissionService.Permission.MANAGE_EMPLOYEES);
         if (!invoices.getAll().isEmpty()) {
             throw new IllegalStateException("Đã có hóa đơn, không được thay toàn bộ danh sách người.");
         }
@@ -26,6 +27,7 @@ public class PersonService {
 
     /** Replace one typed list while retaining the other view in the same Person[]. */
     public void initializeRole(String role, Person[] replacements) {
+        PermissionService.require(PermissionService.Permission.MANAGE_EMPLOYEES);
         if (!"Customer".equals(role) && !"Employee".equals(role))
             throw new IllegalArgumentException("Loại danh sách không hợp lệ.");
         if (replacements == null) throw new IllegalArgumentException("Danh sách mới không được null.");
@@ -40,15 +42,39 @@ public class PersonService {
         initialize(java.util.Arrays.copyOf(combined, count));
     }
 
-    public void add(Person person) { people.add(person); }
-    public void addAll(Person[] additions) { people.addAll(additions); }
-    public boolean updateById(String id, Person replacement) { return people.updateById(id, replacement); }
-    public Person findById(String id) { return people.findById(id); }
-    public Person[] toArray() { return people.toArray(); }
-    public Person[] search(String keyword, String role, boolean exact) { return people.search(keyword, role, exact); }
-    public Map<String, Integer> countByRole() { return people.countByRole(); }
+    public void add(Person person) {
+        if (person instanceof model.Employee) PermissionService.require(PermissionService.Permission.MANAGE_EMPLOYEES);
+        else PermissionService.require(PermissionService.Permission.MANAGE_CUSTOMERS);
+        people.add(person);
+    }
+    public void addAll(Person[] additions) {
+        for (Person person : additions) if (person instanceof model.Employee)
+            PermissionService.require(PermissionService.Permission.MANAGE_EMPLOYEES);
+        else PermissionService.require(PermissionService.Permission.MANAGE_CUSTOMERS);
+        people.addAll(additions);
+    }
+    public boolean updateById(String id, Person replacement) {
+        if (replacement instanceof model.Employee) PermissionService.require(PermissionService.Permission.MANAGE_EMPLOYEES);
+        else PermissionService.require(PermissionService.Permission.MANAGE_CUSTOMERS);
+        return people.updateById(id, replacement);
+    }
+    public Person findById(String id) {
+        Person person = people.findById(id);
+        PermissionService.require(person instanceof model.Employee ? PermissionService.Permission.MANAGE_EMPLOYEES
+                : PermissionService.Permission.READ_CUSTOMERS);
+        return person;
+    }
+    public Person[] toArray() { PermissionService.require(PermissionService.Permission.MANAGE_EMPLOYEES); return people.toArray(); }
+    public Person[] search(String keyword, String role, boolean exact) {
+        PermissionService.require("Employee".equals(role) ? PermissionService.Permission.MANAGE_EMPLOYEES : PermissionService.Permission.READ_CUSTOMERS);
+        return people.search(keyword, role, exact);
+    }
+    public Map<String, Integer> countByRole() { PermissionService.require(PermissionService.Permission.MANAGE_EMPLOYEES); return people.countByRole(); }
 
     public boolean delete(String id) {
+        Person target = people.findById(id);
+        if (target instanceof model.Employee) PermissionService.require(PermissionService.Permission.MANAGE_EMPLOYEES);
+        else PermissionService.require(PermissionService.Permission.DELETE_CUSTOMERS);
         if (id == null) return false;
         String key = id.trim();
         for (Invoice invoice : invoices.getAll()) {

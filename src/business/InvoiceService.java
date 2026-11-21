@@ -29,12 +29,32 @@ public class InvoiceService {
 
     public Invoice createInvoice(String id, String customerId, Employee employee,
                                  Map<String, Integer> quantities) {
+        PermissionService.require(PermissionService.Permission.CREATE_INVOICE);
         Invoice invoice = prepareInvoice(id, customerId, employee, quantities);
         return commitInvoice(invoice);
     }
 
+    /** Return the authoritative employee only when their current position may create invoices. */
+    public Employee requireInvoiceEmployee(Employee candidate) {
+        PermissionService.require(PermissionService.Permission.CREATE_INVOICE);
+        if (candidate == null) throw new IllegalArgumentException("Chưa chọn nhân viên hợp lệ.");
+        Employee current = employees.findById(candidate.getId());
+        var account = PermissionService.currentAccount();
+        if (account != null && account.getRole() == model.Role.EMPLOYEE
+                && !account.getEmployeeId().equalsIgnoreCase(candidate.getId()))
+            throw new SecurityException("Nhân viên chỉ được lập hóa đơn bằng tài khoản được liên kết với chính mình.");
+        if (current == null) throw new IllegalArgumentException("Nhân viên không có trong danh sách.");
+        if (account == null
+                && !current.getPosition().equalsIgnoreCase("Thu ngân")
+                && !current.getPosition().equalsIgnoreCase("Quản lý")) {
+            throw new IllegalArgumentException("Chỉ nhân viên Thu ngân hoặc Quản lý được lập hóa đơn.");
+        }
+        return current;
+    }
+
     /** Revalidate a displayed quote and reject stale prices instead of charging a different amount. */
     public Invoice payInvoice(Invoice quote) {
+        PermissionService.require(PermissionService.Permission.CREATE_INVOICE);
         if (quote == null || quote.getStatus() != Invoice.Status.DRAFT)
             throw new IllegalArgumentException("Chỉ được thanh toán hóa đơn đang lập.");
         Map<String, Integer> quantities = new LinkedHashMap<>();
@@ -71,13 +91,12 @@ public class InvoiceService {
     /** Validate all current references and totals without recording sales or changing stock. */
     public Invoice prepareInvoice(String id, String customerId, Employee employee,
                                   Map<String, Integer> quantities) {
+        PermissionService.require(PermissionService.Permission.CREATE_INVOICE);
         if (id == null || id.isBlank()) throw new IllegalArgumentException("Mã hóa đơn không được trống.");
         if (invoices.findById(id) != null) throw new IllegalArgumentException("Mã hóa đơn đã tồn tại.");
         Customer customer = customers.findById(customerId);
         if (customer == null) throw new IllegalArgumentException("Khách hàng không còn tồn tại: " + customerId);
-        if (employee == null) throw new IllegalArgumentException("Chưa chọn nhân viên hợp lệ.");
-        employee = employees.findById(employee.getId());
-        if (employee == null) throw new IllegalArgumentException("Nhân viên không có trong danh sách.");
+        employee = requireInvoiceEmployee(employee);
         if (quantities == null || quantities.isEmpty()) throw new IllegalArgumentException("Giỏ hàng rỗng.");
 
         Map<String, Integer> cart = new LinkedHashMap<>();
@@ -110,8 +129,13 @@ public class InvoiceService {
     }
 
     public Invoice[] filter(java.time.LocalDate from, java.time.LocalDate to, String customerId) {
+        PermissionService.require(PermissionService.Permission.VIEW_OWN_INVOICES);
         if (from == null || to == null || from.isAfter(to)) throw new IllegalArgumentException("Khoảng ngày không hợp lệ.");
-        return invoices.getAll().stream().filter(Invoice::isCompleted)
+        var stream = invoices.getAll().stream().filter(Invoice::isCompleted);
+        var account = PermissionService.currentAccount();
+        if (account != null && account.getRole() == model.Role.EMPLOYEE)
+            stream = stream.filter(i -> i.getEmployee().getId().equalsIgnoreCase(account.getEmployeeId()));
+        return stream
                 .filter(i -> !i.getCreatedDate().isBefore(from) && !i.getCreatedDate().isAfter(to))
                 .filter(i -> customerId == null || i.getCustomer().getId().equalsIgnoreCase(customerId.trim()))
                 .sorted(java.util.Comparator.comparing(Invoice::getCreatedDate).thenComparing(Invoice::getId))
@@ -122,6 +146,19 @@ public class InvoiceService {
         java.util.Arrays.sort(result, java.util.Comparator.comparing(Invoice::getPaymentDate).thenComparing(Invoice::getCreatedAt));
         return result;
     }
-    public List<Invoice> getInvoices() { return invoices.getAll(); }
-    public Invoice findInvoice(String id) { return invoices.findById(id); }
+    public List<Invoice> getInvoices() {
+        PermissionService.require(PermissionService.Permission.VIEW_OWN_INVOICES);
+        var account = PermissionService.currentAccount();
+        if (account == null || account.getRole() == model.Role.ADMIN) return invoices.getAll();
+        return invoices.getAll().stream().filter(i -> i.getEmployee().getId().equalsIgnoreCase(account.getEmployeeId())).toList();
+    }
+    public Invoice findInvoice(String id) {
+        PermissionService.require(PermissionService.Permission.VIEW_OWN_INVOICES);
+        Invoice invoice = invoices.findById(id);
+        var account = PermissionService.currentAccount();
+        if (invoice != null && account != null && account.getRole() == model.Role.EMPLOYEE
+                && !invoice.getEmployee().getId().equalsIgnoreCase(account.getEmployeeId()))
+            throw new SecurityException("Nhân viên chỉ được xem hóa đơn do mình lập.");
+        return invoice;
+    }
 }

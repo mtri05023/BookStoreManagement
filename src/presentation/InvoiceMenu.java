@@ -33,12 +33,19 @@ public class InvoiceMenu {
     }
     private business.StoreSession session;
     public InvoiceMenu(business.StoreSession session, InputHelper input, InvoiceService invoices) {
+        this(session, input, invoices, () -> null);
+    }
+    public InvoiceMenu(business.StoreSession session, InputHelper input, InvoiceService invoices,
+                       Supplier<Employee> employee) {
         this(new BookService(session.state().getBooks()), new CustomerService(session.state().getCustomers()),
-                invoices, () -> null, input);
+                invoices, employee, input);
         this.session = session;
     }
     public void createInvoice() {
         if (session != null) { checkout(); return; }
+        Employee invoiceEmployee;
+        try { invoiceEmployee = invoiceService.requireInvoiceEmployee(employee.get()); }
+        catch (IllegalArgumentException e) { System.out.println(e.getMessage()); return; }
         String invoiceId = input.read("Mã hóa đơn: ");
         if (invoiceService.findInvoice(invoiceId) != null) {
             System.out.println("Mã hóa đơn đã tồn tại.");
@@ -72,7 +79,7 @@ public class InvoiceMenu {
                 System.out.println("Số lượng vượt giới hạn.");
             }
         }
-        Invoice invoice = invoiceService.createInvoice(invoiceId, customer.getId(), employee.get(), cart);
+        Invoice invoice = invoiceService.createInvoice(invoiceId, customer.getId(), invoiceEmployee, cart);
         printInvoice(invoice);
     }
 
@@ -88,23 +95,63 @@ public class InvoiceMenu {
             System.out.println("Không tìm thấy khách hàng có mã " + key + ". Vui lòng nhập lại.");
         }
         Employee cashier;
+        model.Account active = business.PermissionService.currentAccount();
+        if (active != null && active.getRole() == model.Role.EMPLOYEE) {
+            cashier = session.state().getEmployees().findById(active.getEmployeeId());
+            if (cashier == null) throw new SecurityException("Tài khoản chưa liên kết nhân viên hợp lệ.");
+        } else {
         while (true) {
             String key = input.readExistingCode("NV", "Mã nhân viên: ");
-            cashier = session.state().getEmployees().findById(key);
-            if (cashier != null) break;
-            System.out.println("Không tìm thấy nhân viên có mã " + key + ". Vui lòng nhập lại.");
+            Employee candidate = session.state().getEmployees().findById(key);
+            if (candidate == null) {
+                System.out.println("Không tìm thấy nhân viên có mã " + key + ". Vui lòng nhập lại.");
+                continue;
+            }
+            try {
+                cashier = invoiceService.requireInvoiceEmployee(candidate);
+                break;
+            } catch (IllegalArgumentException e) {
+                System.out.println(e.getMessage() + " Vui lòng nhập mã nhân viên khác.");
+            }
+        }
         }
         Map<String, Integer> cart = new LinkedHashMap<>();
         System.out.println("Danh sách sách có thể mua:");
         ConsoleView.books(bookService.getBooks().stream().filter(book -> book.getQuantity() > 0).toArray(Book[]::new));
-        String bookId = input.readExistingCode("S", "Mã sách cần lập hóa đơn: ");
-        Book book = bookService.findBook(bookId);
-        if (book == null) throw new IllegalArgumentException("Không tìm thấy sách có mã " + bookId);
-        if (book.getQuantity() == 0) throw new IllegalArgumentException("Sách đã hết hàng.");
-        int quantity = input.readInt("Số lượng mua: ");
-        if (quantity <= 0) throw new IllegalArgumentException("Số lượng phải lớn hơn 0.");
-        if (quantity > book.getQuantity()) throw new IllegalArgumentException("Không đủ tồn kho. Tồn hiện tại: " + book.getQuantity());
-        cart.put(book.getId(), quantity);
+        boolean finishedAddingBooks = false;
+        while (!finishedAddingBooks) {
+            String bookId = input.readExistingCode("S", "Mã sách cần lập hóa đơn: ");
+            Book book = bookService.findBook(bookId);
+            if (book == null) {
+                System.out.println("Không tìm thấy sách có mã " + bookId + ". Vui lòng nhập lại.");
+                continue;
+            }
+            if (book.getQuantity() == 0) {
+                System.out.println("Sách đã hết hàng. Vui lòng chọn sách khác.");
+                continue;
+            }
+            int quantity = input.readInt("Số lượng mua: ");
+            if (quantity <= 0) {
+                System.out.println("Số lượng phải lớn hơn 0.");
+                continue;
+            }
+            long combinedQuantity = (long) cart.getOrDefault(book.getId(), 0) + quantity;
+            if (combinedQuantity > book.getQuantity()) {
+                System.out.println("Không đủ tồn kho cho tổng số lượng. Tồn hiện tại: " + book.getQuantity());
+                continue;
+            }
+            cart.put(book.getId(), (int) combinedQuantity);
+            printCart(cart);
+            while (true) {
+                String more = input.read("Có mua thêm sách không? (C/K): ");
+                if (more.equalsIgnoreCase("C")) break;
+                if (more.equalsIgnoreCase("K")) {
+                    finishedAddingBooks = true;
+                    break;
+                }
+                System.out.println("Vui lòng nhập C để thêm sách hoặc K để hoàn tất hóa đơn.");
+            }
+        }
 
         Invoice quote = invoiceService.prepareInvoice(id, customer.getId(), cashier, cart);
         ConsoleView.invoice(quote);
@@ -120,19 +167,18 @@ public class InvoiceMenu {
             return;
         }
         try {
-            session.change(() -> {
-                int before = book.getQuantity();
-                invoiceService.payInvoice(quote);
-                session.state().addStockEvent("STOCK|" + java.time.LocalDate.now() + "|" + book.getId()
-                        + "|" + before + "|" + book.getQuantity() + "|Bán hàng - hóa đơn " + id);
-            });
+            session.payInvoice(invoiceService, quote);
         } catch (IllegalArgumentException | IllegalStateException error) {
             throw new IllegalStateException("Thanh toán không thành công: " + error.getMessage(), error);
         }
         Invoice paid = invoiceService.findInvoice(id);
         System.out.println("THANH TOÁN THÀNH CÔNG!");
         ConsoleView.invoice(paid);
-        System.out.println("Tồn kho còn lại: " + book.getId() + " - " + book.getTitle() + ": " + book.getQuantity());
+        System.out.println("Tồn kho còn lại:");
+        for (InvoiceDetail detail : paid.getDetails()) {
+            Book remaining = bookService.findBook(detail.getBookId());
+            System.out.println(remaining.getId() + " - " + remaining.getTitle() + ": " + remaining.getQuantity());
+        }
     }
     private void printCart(Map<String, Integer> cart) {
         System.out.printf("%-10s %-28s %8s %12s %14s%n", "Mã sách", "Tên sách", "Số lượng", "Đơn giá", "Thành tiền");
@@ -145,6 +191,7 @@ public class InvoiceMenu {
         System.out.printf("Tổng tiền tạm tính / phải thanh toán: %,.0f VNĐ%n", total);
     }
     public void manage() {
+        business.PermissionService.require(business.PermissionService.Permission.VIEW_ALL_INVOICES);
         while (true) {
             ConsoleView.options("QUẢN LÝ HÓA ĐƠN", "Xem tất cả", "Tìm theo mã hóa đơn", "Tìm theo mã khách hàng",
                     "Xem chi tiết hóa đơn", "Lọc theo ngày", "Lọc theo tháng", "Lọc theo năm", "Lọc theo khoảng thời gian",
@@ -170,7 +217,8 @@ public class InvoiceMenu {
                 }
                 if (result.length == 0) System.out.println("Không có hóa đơn phù hợp.");
                 for (Invoice invoice : result) ConsoleView.invoice(invoice);
-                System.out.println("Số hóa đơn: " + result.length);
+                System.out.println(result.length == 0 ? "Tìm/lọc hóa đơn không có kết quả."
+                        : "Tìm/lọc hóa đơn thành công. Số hóa đơn: " + result.length);
             } catch (IllegalArgumentException | IllegalStateException | java.time.DateTimeException e) { System.out.println(e.getMessage()); }
         }
     }
@@ -182,6 +230,11 @@ public class InvoiceMenu {
 
         for (Invoice invoice : invoiceService.getInvoices())
             printInvoice(invoice);
+        System.out.println("Đã hiển thị " + invoiceService.getInvoices().size() + " hóa đơn.");
+    }
+    public void showOwnInvoices() {
+        for (Invoice invoice : invoiceService.getInvoices()) printInvoice(invoice);
+        if (invoiceService.getInvoices().isEmpty()) System.out.println("Bạn chưa lập hóa đơn nào.");
     }
 
     public void printInvoice(Invoice invoice) {

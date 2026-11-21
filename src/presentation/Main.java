@@ -8,6 +8,8 @@ import business.PersonService;
 import data.SampleData;
 import data.StoreState;
 import data.StoreFile;
+import data.AccountFile;
+import data.AccountRepository;
 import utility.InputHelper;
 import utility.StoreConfig;
 import java.util.NoSuchElementException;
@@ -80,20 +82,38 @@ public class Main {
             StoreState state = firstRun ? SampleData.create() : storeFile.load();
             if (firstRun) storeFile.save(state);
             System.out.println("Dữ liệu: " + path.toAbsolutePath());
-            BookService bookService = new BookService(state.getBooks());
-            CustomerService customerService = new CustomerService(state.getCustomers());
-            InvoiceService invoiceService = new InvoiceService(state.getInvoices(), state.getBooks(),
-                    state.getCustomers(), state.getEmployees());
-            ReportService reports = new ReportService(state.getInvoices());
             InputHelper input = new InputHelper(scanner);
-            BookMenu bookMenu = new BookMenu(bookService, input);
-            CustomerMenu customerMenu = new CustomerMenu(customerService, input);
-            InvoiceMenu invoiceMenu = new InvoiceMenu(bookService, customerService, invoiceService,
-                    () -> state.getEmployees().findById(StoreConfig.DEFAULT_EMPLOYEE_ID), input);
-            PersonService personService = new PersonService(state.getPeople(), state.getInvoices());
-            PersonMenu personMenu = new PersonMenu(personService, input);
-            MainMenu menu = managed ? new MainMenu(new business.StoreSession(state, storeFile), input)
-                    : new MainMenu(bookMenu, customerMenu, invoiceMenu, reports, input, personMenu, state, storeFile);
+            AccountFile accountFile = new AccountFile(StoreConfig.resolveAccountFile(path));
+            AccountRepository accounts;
+            if (accountFile.exists()) accounts = accountFile.load();
+            else accounts = new AccountRepository();
+            business.SessionManager loginSession = new business.SessionManager();
+            business.PermissionService.enable(loginSession);
+            business.AccountService accountService = new business.AccountService(accounts, accountFile);
+            if (accounts.getAll().isEmpty()) {
+                System.out.println("Thiết lập Admin đầu tiên (mật khẩu tối thiểu 3 ký tự).");
+                while (accounts.getAll().isEmpty()) {
+                    String username = input.read("Tên đăng nhập Admin (3-32 ký tự): ");
+                    char[] password = input.readPassword("Mật khẩu Admin: ");
+                    char[] confirmation = input.readPassword("Nhập lại mật khẩu Admin: ");
+                    try {
+                        if (!java.util.Arrays.equals(password, confirmation)) {
+                            System.out.println("Mật khẩu xác nhận không khớp.");
+                            continue;
+                        }
+                        String managerId = state.getEmployees().getAll().stream()
+                                .filter(employee -> employee.getPosition().equalsIgnoreCase("Quản lý"))
+                                .map(model.Employee::getId).findFirst().orElse("");
+                        accountService.bootstrapAdmin(username, password, managerId);
+                    } finally {
+                        java.util.Arrays.fill(password, '\0');
+                        java.util.Arrays.fill(confirmation, '\0');
+                    }
+                }
+            }
+            business.AuthService authService = new business.AuthService(accounts, loginSession);
+            MainMenu menu = new MainMenu(new business.StoreSession(state, storeFile), input,
+                    accountService, authService, loginSession);
             try {
                 menu.show();
             } catch (NoSuchElementException e) {

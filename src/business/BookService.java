@@ -18,6 +18,7 @@ public class BookService {
     }
 
     public boolean addBook(Book book) {
+        PermissionService.require(PermissionService.Permission.MANAGE_BOOKS);
         if (book == null) return false;
         if (repository.findById(book.getId()) != null) return false;
         if (!Double.isFinite(book.getPrice()) || book.getPrice() <= 0 || book.getQuantity() < 0) return false;
@@ -26,14 +27,17 @@ public class BookService {
     }
 
     public List<Book> getBooks() {
+        PermissionService.require(PermissionService.Permission.READ_BOOKS);
         return repository.getAll();
     }
 
     public Book findBook(String id) {
+        PermissionService.require(PermissionService.Permission.READ_BOOKS);
         return repository.findById(id);
     }
 
     public boolean deleteBook(String id) {
+        PermissionService.require(PermissionService.Permission.MANAGE_BOOKS);
         if (invoices != null && id != null) {
             for (model.Invoice invoice : invoices.getAll())
                 for (var detail : invoice.getDetails())
@@ -44,6 +48,7 @@ public class BookService {
     }
 
     public void updateBook(Book replacement) {
+        PermissionService.require(PermissionService.Permission.MANAGE_BOOKS);
         Book current = findBook(replacement.getId());
         if (current == null) throw new IllegalArgumentException("Không tìm thấy sách: " + replacement.getId());
         // The replacement is fully validated by its constructor before changing any field.
@@ -57,6 +62,7 @@ public class BookService {
 
     public boolean updateBook(String id, String title, String author,
                               double price, int quantity) {
+        PermissionService.require(PermissionService.Permission.MANAGE_BOOKS);
         Book book = repository.findById(id);
         if (book == null || !Double.isFinite(price) || price <= 0 || quantity < 0
                 || !validText(title) || !validText(author)) return false;
@@ -69,19 +75,23 @@ public class BookService {
     }
 
     public Book[] search(String keyword) {
+        PermissionService.require(PermissionService.Permission.READ_BOOKS);
         String key = keyword.trim().toLowerCase(java.util.Locale.ROOT);
         return repository.getAll().stream().filter(b -> (b.getId() + " " + b.getTitle() + " " + b.getAuthor())
                 .toLowerCase(java.util.Locale.ROOT).contains(key)).toArray(Book[]::new);
     }
     public Book[] filterCategory(String category) {
+        PermissionService.require(PermissionService.Permission.READ_BOOKS);
         return repository.getAll().stream().filter(b -> b.getCategory().equalsIgnoreCase(category.trim())).toArray(Book[]::new);
     }
     public Book[] filterPrice(double min, double max) {
+        PermissionService.require(PermissionService.Permission.READ_BOOKS);
         if (!Double.isFinite(min) || !Double.isFinite(max) || min < 0 || min > max)
             throw new IllegalArgumentException("Khoảng giá không hợp lệ.");
         return repository.getAll().stream().filter(b -> b.getPrice() >= min && b.getPrice() <= max).toArray(Book[]::new);
     }
     public Book[] sorted(int mode) {
+        PermissionService.require(PermissionService.Permission.READ_BOOKS);
         Book[] result = repository.getAll().toArray(new Book[0]);
         java.util.Comparator<Book> comparator = switch (mode) {
             case 1 -> java.util.Comparator.comparing(Book::getTitle, String.CASE_INSENSITIVE_ORDER);
@@ -93,6 +103,7 @@ public class BookService {
         return result;
     }
     public void restock(String id, int amount) {
+        PermissionService.require(PermissionService.Permission.MANAGE_INVENTORY);
         if (amount <= 0) throw new IllegalArgumentException("Số lượng nhập phải lớn hơn 0.");
         Book book = findBook(id);
         if (book == null) throw new IllegalArgumentException("Không tìm thấy sách: " + id);

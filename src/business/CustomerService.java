@@ -12,6 +12,7 @@ public class CustomerService {
     }
 
     public boolean addCustomer(Customer customer) {
+        PermissionService.require(PermissionService.Permission.MANAGE_CUSTOMERS);
         if (customer == null) return false;
         if (repository.findById(customer.getId()) != null) return false;
         repository.add(customer);
@@ -19,10 +20,12 @@ public class CustomerService {
     }
 
     public List<Customer> getCustomers() {
+        PermissionService.require(PermissionService.Permission.READ_CUSTOMERS);
         return repository.getAll();
     }
 
     public Customer findCustomer(String id) {
+        PermissionService.require(PermissionService.Permission.READ_CUSTOMERS);
         return repository.findById(id);
     }
 }

@@ -1,129 +1,161 @@
 package presentation;
 
-import business.ReportService;
+import business.*;
+import data.*;
+import model.Account;
+import model.Role;
 import utility.InputHelper;
 import utility.StoreConfig;
-import data.StoreState;
-import data.StoreFile;
 import java.io.IOException;
+import java.util.Arrays;
 
 public class MainMenu {
-    private final BookMenu bookMenu;
-    private final CustomerMenu customerMenu;
-    private final InvoiceMenu invoiceMenu;
-    private final ReportService reportService;
     private final InputHelper input;
-    private final PersonMenu personMenu;
-    private final StoreState state;
-    private final StoreFile storeFile;
+    private final StoreSession session;
+    private final AccountService accountService;
+    private final AuthService authService;
+    private final SessionManager loginSession;
+    private final BookMenu books;
+    private final CustomerMenu customers;
+    private final InvoiceMenu invoices;
+    private final EmployeeMenu employees;
+    private final InventoryMenu inventory;
+    private final SupplierMenu suppliers;
+    private final ReportMenu reports;
+    private final AccountMenu accounts;
 
-    public MainMenu(BookMenu books, CustomerMenu customers, InvoiceMenu invoices, ReportService reports,
-                    InputHelper input, PersonMenu personMenu, StoreState state, StoreFile storeFile) {
-        this.bookMenu = books;
-        this.customerMenu = customers;
-        this.invoiceMenu = invoices;
-        this.reportService = reports;
-        this.input = input;
-        this.personMenu = personMenu;
-        this.state = state;
-        this.storeFile = storeFile;
+    /** Keeps the original constructor available for existing callers. */
+    public MainMenu(BookMenu bookMenu, CustomerMenu customerMenu, InvoiceMenu invoiceMenu,
+                    ReportService reportService, InputHelper input, PersonMenu personMenu,
+                    StoreState state, StoreFile storeFile) {
+        this.input = input; this.session = null; this.accountService = null; this.authService = null;
+        this.loginSession = null; this.books = bookMenu; this.customers = customerMenu; this.invoices = invoiceMenu;
+        this.employees = null; this.inventory = null; this.suppliers = null;
+        this.reports = null; this.accounts = null;
     }
-    private business.StoreSession session;
-    private EmployeeMenu employeeMenu;
-    private InventoryMenu inventoryMenu;
-    private ReportMenu reportsMenu;
-    public MainMenu(business.StoreSession session, InputHelper input) {
-        this(null, null, null, new ReportService(session.state().getInvoices()), input, null, session.state(), null);
-        this.session = session;
-        var sales = new business.InvoiceService(state.getInvoices(), state.getBooks(), state.getCustomers(), state.getEmployees());
-        managedBooks = new BookMenu(session, input);
-        managedCustomers = new CustomerMenu(session, input, sales);
-        managedInvoices = new InvoiceMenu(session, input, sales);
-        employeeMenu = new EmployeeMenu(session, input);
-        inventoryMenu = new InventoryMenu(session, input);
-        reportsMenu = new ReportMenu(reportService, input);
+
+    public MainMenu(StoreSession session, InputHelper input, AccountService accountService,
+                    AuthService authService, SessionManager loginSession) {
+        this.input = input; this.session = session; this.accountService = accountService;
+        this.authService = authService; this.loginSession = loginSession;
+        StoreState state = session.state();
+        BookService bookService = new BookService(state.getBooks(), state.getInvoices());
+        CustomerService customerService = new CustomerService(state.getCustomers());
+        InvoiceService invoiceService = new InvoiceService(state.getInvoices(), state.getBooks(), state.getCustomers(), state.getEmployees());
+        this.books = new BookMenu(session, input);
+        this.customers = new CustomerMenu(session, input, invoiceService);
+        this.invoices = new InvoiceMenu(session, input, invoiceService, () -> {
+            Account current = PermissionService.currentAccount();
+            return current != null && current.getRole() == Role.EMPLOYEE
+                    ? state.getEmployees().findById(current.getEmployeeId())
+                    : state.getEmployees().findById(StoreConfig.DEFAULT_EMPLOYEE_ID);
+        });
+        this.employees = new EmployeeMenu(session, input);
+        this.inventory = new InventoryMenu(session, input);
+        this.suppliers = new SupplierMenu(session, input);
+        this.reports = new ReportMenu(new ReportService(state.getInvoices()), input, state);
+        this.accounts = new AccountMenu(accountService, state, input);
     }
-    private BookMenu managedBooks;
-    private CustomerMenu managedCustomers;
-    private InvoiceMenu managedInvoices;
-    private void showManaged() {
+
+    public void show() {
+        if (authService == null) throw new IllegalStateException("Menu phải được khởi tạo qua luồng đăng nhập.");
         while (true) {
-            ConsoleView.optionsWithZero(StoreConfig.STORE_NAME, "Lưu và thoát", "Quản lý sách", "Quản lý khách hàng", "Lập hóa đơn",
-                    "Quản lý hóa đơn", "Thống kê doanh thu", "Quản lý nhân viên", "Quản lý tồn kho", "Lưu toàn bộ dữ liệu");
-            System.out.println("Chọn 0 để lưu và thoát. Các thao tác thay đổi được tự động lưu.");
+            System.out.println("\n========== BOOKSTORE MANAGEMENT ==========");
+            try {
+                String username = input.read("Tên đăng nhập (0 để thoát): ");
+                if (username.equals("0")) { session.save(); return; }
+                login(username);
+            } catch (IllegalArgumentException | IllegalStateException | IOException e) {
+                System.out.println("Không thể hoàn tất: " + e.getMessage());
+            }
+        }
+    }
+
+    private void login(String username) throws IOException {
+        char[] password = input.readPassword("Mật khẩu: ");
+        Account account;
+        try { account = authService.login(username, password); }
+        finally { Arrays.fill(password, '\0'); }
+        System.out.println("Đăng nhập thành công. Xin chào " + account.getUsername() + " (" + account.getRole() + ").");
+        if (account.mustChangePassword()) forcePasswordChange();
+        if (loginSession.isAuthenticated()) {
+            if (account.getRole() == Role.ADMIN) showAdmin(); else showEmployee();
+            session.save();
+        }
+        authService.logout();
+        System.out.println("Đã đăng xuất.");
+    }
+
+    private void forcePasswordChange() throws IOException {
+        System.out.println("Bạn phải đổi mật khẩu tạm trước khi sử dụng hệ thống.");
+        while (true) {
+            char[] oldPassword = input.readPassword("Mật khẩu tạm hiện tại: ");
+            char[] next = input.readPassword("Mật khẩu mới (3-128 ký tự): ");
+            char[] confirm = input.readPassword("Nhập lại mật khẩu mới: ");
+            try {
+                if (!Arrays.equals(next, confirm)) { System.out.println("Mật khẩu xác nhận không khớp."); continue; }
+                accountService.updateOwnPassword(oldPassword, next, loginSession);
+                System.out.println("Đã đổi mật khẩu.");
+                return;
+            } catch (IllegalArgumentException e) { System.out.println(e.getMessage()); }
+            finally { Arrays.fill(oldPassword, '\0'); Arrays.fill(next, '\0'); Arrays.fill(confirm, '\0'); }
+        }
+    }
+
+    private void changePassword() {
+        while (true) {
+            char[] oldPassword = input.readPassword("Mật khẩu hiện tại: ");
+            char[] next = input.readPassword("Mật khẩu mới (3-128 ký tự): ");
+            char[] confirm = input.readPassword("Nhập lại mật khẩu mới: ");
+            try {
+                if (!Arrays.equals(next, confirm)) { System.out.println("Mật khẩu xác nhận không khớp."); continue; }
+                accountService.updateOwnPassword(oldPassword, next, loginSession);
+                System.out.println("Đổi mật khẩu thành công.");
+                return;
+            } catch (IllegalArgumentException | IOException e) { System.out.println("Không thể đổi mật khẩu: " + e.getMessage()); }
+            finally { Arrays.fill(oldPassword, '\0'); Arrays.fill(next, '\0'); Arrays.fill(confirm, '\0'); }
+        }
+    }
+
+    private void showAdmin() throws IOException {
+        while (loginSession.isAuthenticated()) {
+            ConsoleView.options("ADMIN MENU", "Quản lý sách", "Quản lý khách hàng", "Quản lý nhân viên",
+                    "Quản lý nhà cung cấp", "Lập hóa đơn", "Quản lý hóa đơn", "Quản lý tồn kho",
+                    "Báo cáo doanh thu", "Quản lý tài khoản", "Đổi mật khẩu", "Lưu dữ liệu");
             int choice = input.readInt("Chọn: ");
             try {
                 switch (choice) {
-                    case 0 -> { save(); System.out.println("Đã thoát chương trình."); return; }
-                    case 1 -> managedBooks.show();
-                    case 2 -> managedCustomers.show();
-                    case 3 -> managedInvoices.createInvoice();
-                    case 4 -> managedInvoices.manage();
-                    case 5 -> reportsMenu.show();
-                    case 6 -> employeeMenu.show();
-                    case 7 -> inventoryMenu.show();
-                    case 8 -> save();
+                    case 0 -> { session.save(); return; }
+                    case 1 -> books.show(); case 2 -> customers.show(); case 3 -> employees.show();
+                    case 4 -> suppliers.show(); case 5 -> invoices.createInvoice(); case 6 -> invoices.manage();
+                    case 7 -> inventory.show(); case 8 -> reports.show(); case 9 -> accounts.show();
+                    case 10 -> changePassword(); case 11 -> { session.save(); System.out.println("Đã lưu dữ liệu."); }
                     default -> System.out.println("Lựa chọn không hợp lệ.");
                 }
-            } catch (IOException | IllegalArgumentException | IllegalStateException e) {
+            } catch (IOException | IllegalArgumentException | IllegalStateException | SecurityException e) {
                 System.out.println("Không thể hoàn tất thao tác: " + e.getMessage());
             }
         }
     }
-    public void show() {
-        if (session != null) { showManaged(); return; }
-        int choice;
-        do {
-            System.out.println("\n======================================");
-            System.out.println("       QUẢN LÝ " + StoreConfig.STORE_NAME);
-            System.out.println("======================================");
-            System.out.println("1. Quản lý sách");
-            System.out.println("2. Quản lý khách hàng");
-            System.out.println("3. Lập hóa đơn");
-            System.out.println("4. Xem hóa đơn");
-            System.out.println("5. Thống kê doanh thu");
-            System.out.println("6. Quản lý khách hàng và nhân viên");
-            System.out.println("7. Lưu toàn bộ dữ liệu text");
-            System.out.println("0. Lưu và thoát");
-            System.out.println("Thay đổi được giữ trên đĩa khi chọn 7 hoặc 0.");
 
-            choice = input.readInt("Chọn: ");
-
+    private void showEmployee() throws IOException {
+        while (loginSession.isAuthenticated()) {
+            ConsoleView.options("EMPLOYEE MENU", "Xem và tìm kiếm sách", "Quản lý khách hàng",
+                    "Lập hóa đơn", "Xem hóa đơn của tôi", "Xem tồn kho", "Đổi mật khẩu");
+            int choice = input.readInt("Chọn: ");
             try {
                 switch (choice) {
-                    case 1 -> bookMenu.show();
-                    case 2 -> customerMenu.show();
-                    case 3 -> invoiceMenu.createInvoice();
-                    case 4 -> invoiceMenu.showInvoices();
-                    case 5 -> {
-                        System.out.printf("Doanh thu: %,.0f VNĐ%n", reportService.getRevenue());
-                        System.out.println("Số lượng đã bán: " + reportService.getTotalQuantitySold());
-                        System.out.println("Lượng theo mã sách: " + reportService.getQuantitySoldByBook());
-                    }
-                    case 6 -> personMenu.show();
-                    case 7 -> save();
-                    case 0 -> {
-                        save();
-                        System.out.println("Đã thoát chương trình.");
-                        return;
-                    }
+                    case 0 -> { session.save(); return; }
+                    case 1 -> books.showForEmployee(); case 2 -> customers.showForEmployee();
+                    case 3 -> invoices.createInvoice(); case 4 -> invoices.showOwnInvoices();
+                    case 5 -> inventory.showForEmployee(); case 6 -> changePassword();
                     default -> System.out.println("Lựa chọn không hợp lệ.");
                 }
-            } catch (IllegalArgumentException | IllegalStateException | IOException e) {
-                // A failed save must not cause option 0 to exit and lose the live session.
-                choice = -1;
-                System.out.println(e.getMessage());
+            } catch (IOException | IllegalArgumentException | IllegalStateException | SecurityException e) {
+                System.out.println("Không thể hoàn tất thao tác: " + e.getMessage());
             }
-        } while (choice != 0);
+        }
     }
 
-    public void save() throws IOException {
-        if (session != null) {
-            session.save();
-            System.out.println("Lưu dữ liệu thành công!");
-            return;
-        }
-        storeFile.save(state);
-        System.out.println("Đã lưu: " + storeFile.getPath().toAbsolutePath());
-    }
+    public void save() throws IOException { session.save(); }
 }

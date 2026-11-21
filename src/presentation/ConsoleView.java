@@ -24,6 +24,7 @@ public final class ConsoleView {
         for (Book b : books) System.out.printf("%-10s %-28s %-24s %12s %12.0f %8d%n",
                 b.getId(), b.getTitle(), b.getAuthor(), b.getPurchasePrice() == 0 ? "Chưa có" : String.format("%.0f", b.getPurchasePrice()), b.getPrice(), b.getQuantity());
         if (books.length == 0) System.out.println("Không tìm thấy sách phù hợp.");
+        else System.out.println("Số sách hiển thị: " + books.length);
     }
     public static void invoice(Invoice i) {
         System.out.println("\nHÓA ĐƠN " + i.getId() + " | " + i.getCreatedDate().format(DATE));
