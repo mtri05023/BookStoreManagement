@@ -9,14 +9,15 @@ from regression_remaining import run_remaining
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "data" / "store.txt"
-JDK = Path(os.environ.get("JAVA_HOME", r"C:\Program Files\Java\jdk-27")) / "bin"
-JAVA = JDK / "java.exe"
-JAVAC = JDK / "javac.exe"
+JAVA = shutil.which("java")
+JAVAC = shutil.which("javac")
+COMPILER = ([JAVAC, "--release", "17"] if JAVAC else
+            [JAVA, "-m", "jdk.compiler/com.sun.tools.javac.Main", "-source", "17", "-target", "17"])
 
 
 def run(data, steps, build):
     result = subprocess.run(
-        [str(JAVA), "-cp", str(build), "presentation.Main", "--data", str(data)],
+        [str(JAVA), "-cp", str(build), "bookstore.Main", "--data", str(data)],
         input="\n".join(steps) + "\n", text=True, encoding="utf-8",
         capture_output=True, timeout=120, cwd=ROOT,
     )
@@ -38,7 +39,7 @@ def main():
         build.mkdir()
         sources = sorted(str(p) for p in (ROOT / "src").rglob("*.java"))
         sources.append(str(ROOT / "tests" / "FailureInjection.java"))
-        subprocess.run([str(JAVAC), "--release", "17", "-encoding", "UTF-8", "-d", str(build), *sources], check=True)
+        subprocess.run([*COMPILER, "-encoding", "UTF-8", "-d", str(build), *sources], check=True)
 
         data = work / "store.txt"
         shutil.copy2(SOURCE, data)
@@ -65,7 +66,7 @@ def main():
         assert "Số điện thoại mới: Số điện thoại khách hàng đã tồn tại" in out
         assert "Đăng nhập thành công. Xin chào qaemployee" in out
         employee_search = out.split("Đăng nhập thành công. Xin chào qaemployee", 1)[1].split("Đã đăng xuất.", 1)[0]
-        assert "Tên hoặc từ khóa: " in employee_search and "KH990" in employee_search and "KH991" in employee_search
+        assert "Tên hoặc từ khóa (0 để quay lại): " in employee_search and "KH990" in employee_search and "KH991" in employee_search
         assert "Xóa nhân viên và tài khoản liên kết thành công" in out
         assert out.count("Tên đăng nhập hoặc mật khẩu không đúng") == 1
         rows = lines(data)

@@ -1,16 +1,5 @@
-import business.AccountService;
-import business.PasswordUtil;
-import business.PermissionService;
-import business.PersonService;
-import business.SessionManager;
-import business.StoreSession;
-import data.AccountFile;
-import data.AccountRepository;
-import data.StoreFile;
-import data.StoreState;
-import model.Account;
-import model.Employee;
-import model.Role;
+package bookstore;
+
 import java.io.IOException;
 import java.nio.file.Path;
 
@@ -23,26 +12,26 @@ public final class FailureInjection {
     public static void main(String[] args) throws Exception {
         Path storePath = Path.of(args[0]);
         Path accountPath = Path.of(args[0] + ".accounts");
-        StoreState state = new StoreState();
+        BookStore state = new BookStore();
         state.getEmployees().add(new Employee("NV001", "Admin", "0900000001", "Quản lý"));
         state.getEmployees().add(new Employee("NV009", "Target", "0900000009", "Thu ngân"));
         new StoreFile(storePath).save(state);
 
-        AccountRepository accounts = new AccountRepository();
-        Account admin = new Account("A001", "adminqa", PasswordUtil.hash("admin123".toCharArray()),
-                Role.ADMIN, "NV001", true, false);
+        AccountList accounts = new AccountList();
+        Account admin = new Account("A001", "adminqa", Account.hash("admin123".toCharArray()),
+                Account.Role.ADMIN, "NV001", true, false);
         accounts.add(admin);
-        accounts.add(new Account("A002", "targetqa", PasswordUtil.hash("target123".toCharArray()),
-                Role.EMPLOYEE, "NV009", true, false));
-        AccountFile accountFile = new AccountFile(accountPath);
+        accounts.add(new Account("A002", "targetqa", Account.hash("target123".toCharArray()),
+                Account.Role.EMPLOYEE, "NV009", true, false));
+        StoreFile accountFile = new StoreFile(accountPath);
         accountFile.save(accounts);
 
-        SessionManager login = new SessionManager();
-        PermissionService.enable(login);
+        AccountList login = accounts;
+        AccountList.enable(login);
         login.login(admin);
         StoreFile failOnce = new StoreFile(storePath) {
             private boolean pending = true;
-            @Override public void save(StoreState value) throws IOException {
+            @Override public void save(BookStore value) throws IOException {
                 if (pending) {
                     pending = false;
                     throw new IOException("Injected store write failure");
@@ -50,12 +39,14 @@ public final class FailureInjection {
                 super.save(value);
             }
         };
-        StoreSession session = new StoreSession(state, failOnce);
-        AccountService service = new AccountService(accounts, accountFile);
+        BookStore session = state;
+        state.useFile(failOnce);
+        AccountList service = accounts;
+        accounts.configure(accountFile, state.getEmployees());
         boolean rejected = false;
         try {
             service.deleteEmployeeWithAccount("NV009", () -> session.change(() -> {
-                if (!new PersonService(state.getPeople(), state.getInvoices()).delete("NV009"))
+                if (!state.deletePerson("NV009", false))
                     throw new IllegalStateException("Missing employee");
             }));
         } catch (IllegalStateException expected) {
@@ -66,7 +57,7 @@ public final class FailureInjection {
         check(accounts.findByUsername("targetqa") != null, "Account missing in memory after failure");
         check(new StoreFile(storePath).load().getEmployees().findById("NV009") != null,
                 "Employee missing after restart");
-        check(new AccountFile(accountPath).load().findByUsername("targetqa") != null,
+        check(new StoreFile(accountPath).loadAccounts().findByUsername("targetqa") != null,
                 "Account missing after restart");
         System.out.println("PASS injected store failure: employee and account restored in memory and on disk");
     }

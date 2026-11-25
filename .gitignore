@@ -1,4 +1,7 @@
-/build/
+out/
 *.class
-*.accounts
-/data/
+tests/__pycache__/
+*.pyc
+data/*.bak
+data/*.v3.bak
+data/store-imported.tx

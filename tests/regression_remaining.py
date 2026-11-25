@@ -150,7 +150,7 @@ def boundary_checks(work, build, run):
 
 def failure_check(work, build, java):
     path = work / "failure-store.txt"
-    result = subprocess.run([str(java), "-cp", str(build), "FailureInjection", str(path)],
+    result = subprocess.run([str(java), "-cp", str(build), "bookstore.FailureInjection", str(path)],
                             text=True, encoding="utf-8", capture_output=True, timeout=120)
     assert result.returncode == 0, result.stdout + result.stderr
     assert "PASS injected store failure" in result.stdout
