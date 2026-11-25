@@ -65,8 +65,6 @@ public class CustomerList {
         AccountList.require(AccountList.Permission.MANAGE_CUSTOMERS);
         if (customer == null) return false;
         if (findById(customer.getId()) != null) return false;
-        if (getAll().stream().anyMatch(c -> c.getPhone().equals(customer.getPhone())))
-            throw new IllegalArgumentException("Số điện thoại khách hàng đã tồn tại.");
         add(customer);
         return true;
     }

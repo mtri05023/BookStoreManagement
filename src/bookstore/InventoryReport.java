@@ -85,7 +85,7 @@ public class InventoryReport {
                             retail = retail.add(BigDecimal.valueOf(b.getPrice()).multiply(BigDecimal.valueOf(b.getQuantity())));
                             if (b.getPurchasePrice() == 0 && b.getQuantity() > 0) unknown++;
                         }
-                        System.out.printf("Giá trị theo giá nhập đã khai báo: %,.0f VNĐ%nGiá trị theo giá bán: %,.0f VNĐ%n", cost, retail);
+                        System.out.printf(InputHelper.CURRENCY_LOCALE, "Giá trị theo giá nhập đã khai báo: %,.0f VNĐ%nGiá trị theo giá bán: %,.0f VNĐ%n", cost, retail);
                         if (unknown > 0) System.out.println("Có " + unknown + " đầu sách chưa khai báo giá nhập; tổng giá nhập chưa đầy đủ.");
                         System.out.println("Đã thống kê giá trị tồn kho thành công.");
                     }

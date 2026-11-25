@@ -284,18 +284,6 @@ public class CatalogMenu {
         }
         return Book.create(id, title, author, category, cost, price, old.getQuantity());
     }
-    public void addBook() {
-        String id = input.read("Mã sách: ");
-        String title = input.read("Tên sách: ");
-        String author = input.read("Tác giả: ");
-        double price = input.readDouble("Giá: ");
-        int quantity = input.readInt("Số lượng: ");
-
-        if (books.addBook(Book.create(id, title, author, price, quantity)))
-            System.out.println("Thêm sách thành công.");
-        else
-            System.out.println("Không thể thêm sách. Kiểm tra mã hoặc dữ liệu.");
-    }
 
     public void showBooks() {
         System.out.printf("%-8s %-25s %-20s %10s %6s%n",
@@ -361,7 +349,7 @@ public class CatalogMenu {
                     case 1 -> showCustomers();
                     case 2 -> findCustomer();
                     case 3 -> findByName();
-                    case 4 -> session.addCustomer(readCustomer(input.readNewCode("KH", "Mã khách hàng: ")));
+                    case 4 -> session.addCustomer(readCustomer(newCustomerId()));
                     case 5 -> {
                         updateCustomerFields();
                     }
@@ -382,7 +370,7 @@ public class CatalogMenu {
                 switch (choice) {
                     case 0 -> { return; }
                     case 1 -> {
-                        Customer c = readCustomer(input.readNewCode("KH", "Mã khách hàng: "));
+                        Customer c = readCustomer(newCustomerId());
                         session.addCustomer(c);
                         System.out.println("Thêm khách hàng thành công! Đã lưu dữ liệu.");
                     }
@@ -419,7 +407,7 @@ public class CatalogMenu {
                         Customer[] customers = this.customers.getCustomers().toArray(new Customer[0]);
                         java.util.Arrays.sort(customers, java.util.Comparator.comparingDouble((Customer c) -> total(c.getId())).reversed());
                         System.out.println("Mã | Họ tên | Số hóa đơn | Tổng chi tiêu (VNĐ)");
-                        for (Customer c : customers) System.out.printf("%s | %s | %d | %,.0f%n", c.getId(), c.getName(), invoices.history(c.getId()).length, total(c.getId()));
+                        for (Customer c : customers) System.out.printf(InputHelper.CURRENCY_LOCALE, "%s | %s | %d | %,.0f%n", c.getId(), c.getName(), invoices.history(c.getId()).length, total(c.getId()));
                         System.out.println(customers.length == 0 ? "Chưa có khách hàng để thống kê." : "Đã thống kê chi tiêu của " + customers.length + " khách hàng.");
                     }
                     case 13 -> {
@@ -428,7 +416,7 @@ public class CatalogMenu {
                         Customer[] batch = new Customer[n];
                         for (int i = 0; i < n; i++) {
                             System.out.println("Khách hàng thứ " + (i + 1) + "/" + n);
-                            batch[i] = readCustomer(input.readNewCode("KH", "Mã khách hàng: "));
+                            batch[i] = readCustomer(newCustomerId());
                         }
                         session.addCustomers(batch);
                         System.out.println("Đã thêm " + n + " khách hàng vào danh sách. Đã lưu dữ liệu.");
@@ -439,6 +427,11 @@ public class CatalogMenu {
         }
     }
     private Customer readCustomer(String id) { return new Customer(id, input.read("Họ tên: "), input.readPhone("Điện thoại: ")); }
+    private String newCustomerId() {
+        String id = input.readNewCode("KH", "Mã khách hàng: ");
+        if (customers.findCustomer(id) != null) throw new IllegalArgumentException("Không thể thêm khách hàng: Mã khách hàng đã tồn tại.");
+        return id;
+    }
     private void findByName() {
         while (true) {
             String key = input.read("Tên hoặc từ khóa (0 để quay lại): ").toLowerCase(java.util.Locale.ROOT);
@@ -496,23 +489,18 @@ public class CatalogMenu {
         if (invoices.length == 0) { System.out.println("Khách hàng chưa có giao dịch nào."); return; }
         if (mode == 8) for (Invoice i : invoices) InputHelper.invoice(i);
         if (mode == 8 || mode == 9) System.out.println("Tổng số hóa đơn: " + invoices.length);
-        if (mode == 8 || mode == 10) System.out.printf("Tổng chi tiêu: %,.0f VNĐ%n", total(c.getId()));
+        if (mode == 8 || mode == 10) System.out.printf(InputHelper.CURRENCY_LOCALE, "Tổng chi tiêu: %,.0f VNĐ%n", total(c.getId()));
         if (mode == 8 || mode == 11) System.out.println("Lần mua gần nhất: " + invoices[invoices.length - 1].getPaymentDate().format(InputHelper.DATE));
     }
-    public void addCustomer() {
-        String id = input.read("Mã KH: ");
-        String name = input.read("Tên KH: ");
-        String phone = input.readPhone("SĐT: ");
-
-        System.out.println(customers.addCustomer(
-                new Customer(id, name, phone))
-                ? "Thêm thành công." : "Mã khách hàng đã tồn tại.");
-    }
-
     public void showCustomers() {
-        System.out.printf("%-8s %-25s %-15s%n", "Mã", "Tên", "SĐT");
+        String header = String.format("%-8s %-25s %-15s", "Mã", "Tên", "SĐT");
+        String border = "-".repeat(header.length());
+        System.out.println(border);
+        System.out.println(header);
+        System.out.println(border);
         for (Customer c : customers.getCustomers())
             System.out.println(c);
+        System.out.println(border);
         System.out.println("Số khách hàng: " + customers.getCustomers().size());
     }
 
@@ -549,6 +537,11 @@ public class CatalogMenu {
         String phone = readPhone();
         return new Employee(id, name, phone, readPosition());
     }
+    private String newEmployeeId() {
+        String id = input.readNewCode("NV", "Mã nhân viên: ");
+        if (session.getEmployees().findById(id) != null) throw new IllegalArgumentException("Không thể thêm nhân viên: Mã nhân viên đã tồn tại.");
+        return id;
+    }
     private String readPhone() {
         return input.readPhone("Điện thoại (10 chữ số, bắt đầu bằng 0): ");
     }
@@ -581,7 +574,7 @@ public class CatalogMenu {
                 switch (choice) {
                     case 0 -> { return; }
                     case 1 -> {
-                        Employee e = readEmployee(input.readNewCode("NV", "Mã nhân viên: "));
+                        Employee e = readEmployee(newEmployeeId());
                         ensureSingleManager(new Employee[] { e }, null);
                         session.change(() -> session.getEmployees().add(e));
                         System.out.println("Thêm nhân viên thành công! Đã lưu dữ liệu.");
@@ -634,7 +627,7 @@ public class CatalogMenu {
                         Employee[] batch = new Employee[n];
                         for (int i = 0; i < n; i++) {
                             System.out.println("Nhân viên thứ " + (i + 1) + "/" + n);
-                            batch[i] = readEmployee(input.readNewCode("NV", "Mã nhân viên: "));
+                            batch[i] = readEmployee(newEmployeeId());
                         }
                         Employee[] employees = batch;
                         ensureSingleManager(employees, null);
@@ -771,6 +764,8 @@ public class CatalogMenu {
         String employeeId = input.readExistingCode("NV", "Mã nhân viên: ");
         Employee employee = session.getEmployees().findById(employeeId);
         if (employee == null) throw new IllegalArgumentException("Không tìm thấy nhân viên.");
+        if (accounts.repository().getAll().stream().anyMatch(a -> a.getEmployeeId().equalsIgnoreCase(employeeId)))
+            throw new IllegalArgumentException("Nhân viên " + employeeId + " đã có tài khoản.");
         String username = input.read("Tên đăng nhập mới: ");
         char[] password = readConfirmedPassword();
         try {
@@ -811,7 +806,7 @@ public class CatalogMenu {
     private void checkout() {
         String id = input.readNewCode("HD", "Mã hóa đơn: ");
         if (id.isBlank() || id.contains("|")) throw new IllegalArgumentException("Mã hóa đơn không hợp lệ.");
-        if (invoices.findInvoice(id) != null) throw new IllegalArgumentException("Mã hóa đơn đã tồn tại: " + id);
+        if (invoices.findById(id) != null) throw new IllegalArgumentException("Mã hóa đơn đã tồn tại: " + id);
         Customer customer;
         while (true) {
             String key = input.readExistingCode("KH", "Mã khách hàng: ");
@@ -913,7 +908,7 @@ public class CatalogMenu {
             double amount = book.getPrice() * entry.getValue(); total += amount;
             System.out.printf("%-10s %-28s %8d %12.0f %14.0f%n", book.getId(), book.getTitle(), entry.getValue(), book.getPrice(), amount);
         }
-        System.out.printf("Tổng tiền tạm tính / phải thanh toán: %,.0f VNĐ%n", total);
+        System.out.printf(InputHelper.CURRENCY_LOCALE, "Tổng tiền tạm tính / phải thanh toán: %,.0f VNĐ%n", total);
     }
     public void manageInvoices() {
         AccountList.require(AccountList.Permission.VIEW_ALL_INVOICES);
@@ -967,16 +962,6 @@ public class CatalogMenu {
             System.out.println("Sai mã khách hàng: " + id + ". Vui lòng nhập lại.");
         }
     }
-    public void showInvoices() {
-        if (invoices.getInvoices().isEmpty()) {
-            System.out.println("Chưa có hóa đơn.");
-            return;
-        }
-
-        for (Invoice invoice : invoices.getInvoices())
-            printInvoice(invoice);
-        System.out.println("Đã hiển thị " + invoices.getInvoices().size() + " hóa đơn.");
-    }
     public void showOwnInvoices() {
         for (Invoice invoice : invoices.getInvoices()) printInvoice(invoice);
         if (invoices.getInvoices().isEmpty()) System.out.println("Bạn chưa lập hóa đơn nào.");
@@ -996,7 +981,7 @@ public class CatalogMenu {
         }
 
         System.out.println("--------------------------------------");
-        System.out.printf("TỔNG TIỀN: %,.0f VNĐ%n", invoice.getTotal());
+        System.out.printf(InputHelper.CURRENCY_LOCALE, "TỔNG TIỀN: %,.0f VNĐ%n", invoice.getTotal());
         System.out.println("======================================");
     }
 }

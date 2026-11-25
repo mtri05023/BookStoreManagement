@@ -129,6 +129,8 @@ public class InputHelper {
         return value;
     }
     public static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    /** Pinned so grouped money totals read the same regardless of the running machine's default locale. */
+    public static final Locale CURRENCY_LOCALE = Locale.forLanguageTag("vi-VN");
     public static void options(String title, String... labels) {
         optionsWithZero(title, "Quay lại", labels);
     }
@@ -138,9 +140,14 @@ public class InputHelper {
         System.out.println("0. " + zero);
     }
     public static void books(Book[] books) {
-        System.out.printf("%-10s %-28s %-24s %12s %12s %8s%n", "Mã", "Tên sách", "Tác giả", "Giá nhập", "Giá bán", "Tồn kho");
+        String header = String.format("%-10s %-28s %-24s %12s %12s %8s", "Mã", "Tên sách", "Tác giả", "Giá nhập", "Giá bán", "Tồn kho");
+        String border = "-".repeat(header.length());
+        System.out.println(border);
+        System.out.println(header);
+        System.out.println(border);
         for (Book b : books) System.out.printf("%-10s %-28s %-24s %12s %12.0f %8d%n",
                 b.getId(), b.getTitle(), b.getAuthor(), b.getPurchasePrice() == 0 ? "Chưa có" : String.format("%.0f", b.getPurchasePrice()), b.getPrice(), b.getQuantity());
+        System.out.println(border);
         if (books.length == 0) System.out.println("Không tìm thấy sách phù hợp.");
         else System.out.println("Số sách hiển thị: " + books.length);
     }
@@ -159,7 +166,7 @@ public class InputHelper {
         System.out.printf("%-10s %-28s %8s %12s %14s%n", "Mã sách", "Tên sách", "Số lượng", "Đơn giá", "Thành tiền");
         for (var d : i.getDetails()) System.out.printf("%-10s %-28s %8d %12.0f %14.0f%n",
                 d.getBookId(), d.getBookTitle(), d.getQuantity(), d.getPrice(), d.getAmount());
-        System.out.printf("Tổng tiền: %,.0f VNĐ%nGiảm giá: 0 VNĐ%n%s: %,.0f VNĐ%n", i.getTotal(),
+        System.out.printf(CURRENCY_LOCALE, "Tổng tiền: %,.0f VNĐ%nGiảm giá: 0 VNĐ%n%s: %,.0f VNĐ%n", i.getTotal(),
                 i.isCompleted() ? "Tổng tiền đã thanh toán" : "Số tiền phải thanh toán", i.getTotal());
     }
     public static LocalDate[] range(InputHelper in, int mode) {
