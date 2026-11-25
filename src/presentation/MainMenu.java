@@ -50,7 +50,7 @@ public class MainMenu {
                     ? state.getEmployees().findById(current.getEmployeeId())
                     : state.getEmployees().findById(StoreConfig.DEFAULT_EMPLOYEE_ID);
         });
-        this.employees = new EmployeeMenu(session, input);
+        this.employees = new EmployeeMenu(session, input, accountService);
         this.inventory = new InventoryMenu(session, input);
         this.suppliers = new SupplierMenu(session, input);
         this.reports = new ReportMenu(new ReportService(state.getInvoices()), input, state);

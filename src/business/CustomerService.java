@@ -15,6 +15,8 @@ public class CustomerService {
         PermissionService.require(PermissionService.Permission.MANAGE_CUSTOMERS);
         if (customer == null) return false;
         if (repository.findById(customer.getId()) != null) return false;
+        if (repository.getAll().stream().anyMatch(c -> c.getPhone().equals(customer.getPhone())))
+            throw new IllegalArgumentException("Số điện thoại khách hàng đã tồn tại.");
         repository.add(customer);
         return true;
     }

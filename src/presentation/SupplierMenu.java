@@ -38,6 +38,12 @@ public final class SupplierMenu {
                     }
                     case 4 -> {
                         Supplier current = requireSupplier();
+                        for (String row : session.state().getStockEvents()) {
+                            String[] fields = row.split("\\|", -1);
+                            if ((fields.length == 4 && fields[0].equals("SOURCE") && fields[2].equalsIgnoreCase(current.getId()))
+                                    || (fields.length == 8 && fields[0].equals("RECEIPT") && fields[5].equalsIgnoreCase(current.getId())))
+                                throw new IllegalStateException("Không thể xóa nhà cung cấp đã có nguồn cung hoặc nhật ký nhập hàng.");
+                        }
                         if (!input.read("Xóa " + current.getId() + " - " + current.getName() + "? Gõ DONGY: ").equals("DONGY")) {
                             System.out.println("Đã hủy thao tác.");
                             break;
@@ -74,7 +80,7 @@ public final class SupplierMenu {
 
     private Supplier readSupplier(String id) {
         String name = input.read("Tên nhà cung cấp: ");
-        String phone = input.read("Số điện thoại (10 chữ số, bắt đầu bằng 0): ");
+        String phone = input.readPhone("Số điện thoại (10 chữ số, bắt đầu bằng 0): ");
         return new Supplier(id, name, phone);
     }
 }

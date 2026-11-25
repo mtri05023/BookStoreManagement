@@ -5,12 +5,16 @@ public class Customer extends Person {
 
     public Customer(String id, String name, String phone) {
         super(id, name);
-        this.phone = ModelChecks.text(phone, "Điện thoại");
+        setPhone(phone);
     }
 
     public String getPhone() { return phone; }
 
-    public void setPhone(String phone) { this.phone = ModelChecks.text(phone, "Điện thoại"); }
+    public void setPhone(String phone) {
+        String value = ModelChecks.text(phone, "Điện thoại");
+        if (!value.matches("0[0-9]{9}")) throw new IllegalArgumentException("Điện thoại khách hàng phải có đúng 10 chữ số và bắt đầu bằng 0.");
+        this.phone = value;
+    }
 
     @Override
     public String getRole() { return "Customer"; }

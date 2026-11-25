@@ -32,6 +32,43 @@ public final class StoreSession {
             if (!state.getPeople().updateById(customer.getId(), customer)) throw new IllegalArgumentException("Không tìm thấy khách hàng.");
         });
     }
+    public void renameCustomer(String oldId, model.Customer replacement) {
+        PermissionService.require(PermissionService.Permission.MANAGE_CUSTOMERS);
+        changeInternal(() -> {
+            if (state.getCustomers().findById(oldId) == null) throw new IllegalArgumentException("Không tìm thấy khách hàng.");
+            if (state.getPeople().findById(replacement.getId()) != null)
+                throw new IllegalArgumentException("Mã khách hàng đã tồn tại.");
+            for (var invoice : state.getInvoices().getAll())
+                if (invoice.getCustomer().getId().equalsIgnoreCase(oldId))
+                    throw new IllegalStateException("Không thể đổi mã khách hàng đã phát sinh hóa đơn.");
+            var people = state.getPeople().toArray();
+            for (int i = 0; i < people.length; i++)
+                if (people[i].getId().equalsIgnoreCase(oldId)) people[i] = replacement;
+            state.getPeople().initialize(people);
+        });
+    }
+    public void renameBook(String oldId, Book replacement) {
+        PermissionService.require(PermissionService.Permission.MANAGE_BOOKS);
+        changeInternal(() -> {
+            if (state.getBooks().findById(oldId) == null) throw new IllegalArgumentException("Không tìm thấy sách.");
+            if (state.getBooks().findById(replacement.getId()) != null)
+                throw new IllegalArgumentException("Mã sách đã tồn tại.");
+            for (var invoice : state.getInvoices().getAll())
+                for (var detail : invoice.getDetails())
+                    if (detail.getBookId().equalsIgnoreCase(oldId))
+                        throw new IllegalStateException("Không thể đổi mã sách đã phát sinh hóa đơn.");
+            for (String row : state.getStockEvents()) {
+                String[] fields = row.split("\\|", -1);
+                if (fields.length > 2 && ((fields[0].equals("SOURCE") && fields[1].equalsIgnoreCase(oldId))
+                        || (!fields[0].equals("SOURCE") && fields[2].equalsIgnoreCase(oldId))))
+                    throw new IllegalStateException("Không thể đổi mã sách đã có nhật ký kho/nguồn cung.");
+            }
+            var books = state.getBooks().getAll().toArray(new Book[0]);
+            for (int i = 0; i < books.length; i++)
+                if (books[i].getId().equalsIgnoreCase(oldId)) books[i] = replacement;
+            state.getBooks().replaceAll(books);
+        });
+    }
     public void deleteCustomer(String id) {
         PermissionService.require(PermissionService.Permission.DELETE_CUSTOMERS);
         changeInternal(() -> {
@@ -41,10 +78,6 @@ public final class StoreSession {
     public void addCustomers(model.Customer[] customers) {
         PermissionService.require(PermissionService.Permission.MANAGE_CUSTOMERS);
         changeInternal(() -> { for (model.Customer customer : customers) state.getCustomers().add(customer); });
-    }
-    public void replaceCustomers(model.Customer[] customers) {
-        PermissionService.require(PermissionService.Permission.MANAGE_EMPLOYEES);
-        changeInternal(() -> new PersonService(state.getPeople(), state.getInvoices()).initializeRole("Customer", customers));
     }
     public void payInvoice(InvoiceService invoiceService, model.Invoice quote) {
         PermissionService.require(PermissionService.Permission.CREATE_INVOICE);

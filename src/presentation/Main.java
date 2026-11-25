@@ -111,7 +111,7 @@ public class Main {
                     }
                 }
             }
-            business.AuthService authService = new business.AuthService(accounts, loginSession);
+            business.AuthService authService = new business.AuthService(accounts, loginSession, state.getEmployees());
             MainMenu menu = new MainMenu(new business.StoreSession(state, storeFile), input,
                     accountService, authService, loginSession);
             try {

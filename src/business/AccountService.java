@@ -16,6 +16,31 @@ public final class AccountService {
         PermissionService.require(PermissionService.Permission.MANAGE_ACCOUNTS);
         return accounts;
     }
+    /** Remove a linked employee account and roll it back if the employee change fails. */
+    public void deleteEmployeeWithAccount(String employeeId, Runnable deleteEmployee) throws IOException {
+        PermissionService.require(PermissionService.Permission.MANAGE_EMPLOYEES);
+        var linked = accounts.getAll().stream()
+                .filter(a -> a.getEmployeeId().equalsIgnoreCase(employeeId)).toList();
+        if (linked.stream().anyMatch(a -> a.getRole() == Role.ADMIN))
+            throw new IllegalStateException("Không thể xóa nhân viên đang liên kết tài khoản Admin.");
+        if (!linked.isEmpty()) {
+            for (Account account : linked) accounts.deleteById(account.getId());
+            try { file.save(accounts); }
+            catch (IOException | RuntimeException error) {
+                for (Account account : linked) accounts.add(account);
+                throw error;
+            }
+        }
+        try { deleteEmployee.run(); }
+        catch (RuntimeException error) {
+            if (!linked.isEmpty()) {
+                for (Account account : linked) accounts.add(account);
+                try { file.save(accounts); }
+                catch (IOException restoreError) { error.addSuppressed(restoreError); }
+            }
+            throw error;
+        }
+    }
     public void bootstrapAdmin(String username, char[] password) throws IOException {
         bootstrapAdmin(username, password, "");
     }

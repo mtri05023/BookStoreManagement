@@ -86,12 +86,19 @@ public class PersonMenu {
     }
 
     private void search() {
-        String keyword = input.read("Mã/tên/điện thoại/chức vụ (trống = tất cả): ");
-        String role = input.read("Vai trò Customer/Employee (trống = tất cả): ");
-        int mode = input.readInt("1. Chính xác, 2. Gần đúng: ");
-        if (mode != 1 && mode != 2) throw new IllegalArgumentException("Kiểu tìm kiếm không hợp lệ.");
-        boolean exact = mode == 1;
-        print(people.search(keyword, role, exact));
+        while (true) {
+            String keyword = input.read("Mã/tên/điện thoại/chức vụ (0 để quay lại, trống = tất cả): ");
+            if (keyword.equals("0")) return;
+            String role = input.read("Vai trò Customer/Employee (trống = tất cả): ");
+            int mode = input.readInt("1. Chính xác, 2. Gần đúng: ");
+            if (mode != 1 && mode != 2) {
+                System.out.println("Kiểu tìm kiếm không hợp lệ. Vui lòng nhập lại.");
+                continue;
+            }
+            Person[] matches = people.search(keyword, role, mode == 1);
+            if (matches.length > 0) { print(matches); return; }
+            System.out.println("Sai mã hoặc từ khóa không có kết quả. Vui lòng nhập lại.");
+        }
     }
 
     private void print(Person[] result) {

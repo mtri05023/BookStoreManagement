@@ -11,7 +11,9 @@ public class Employee extends Person {
 
     public Employee(String id, String name, String phone, String position) {
         this(id, name, position);
-        this.phone = ModelChecks.text(phone, "Điện thoại");
+        String value = ModelChecks.text(phone, "Điện thoại");
+        if (!value.matches("0[0-9]{9}")) throw new IllegalArgumentException("Điện thoại nhân viên phải có đúng 10 chữ số và bắt đầu bằng 0.");
+        this.phone = value;
     }
     public String getPhone() { return phone; }
     public String getPosition() { return position; }

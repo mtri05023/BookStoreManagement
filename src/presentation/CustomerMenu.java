@@ -12,12 +12,10 @@ public class CustomerMenu {
         this.input = input;
     }
     private business.StoreSession session;
-    private business.PersonService people;
     private business.InvoiceService sales;
     public CustomerMenu(business.StoreSession session, InputHelper input, business.InvoiceService sales) {
         this(new CustomerService(session.state().getCustomers()), input);
         this.session = session;
-        this.people = new business.PersonService(session.state().getPeople(), session.state().getInvoices());
         this.sales = sales;
     }
     public void show() {
@@ -55,12 +53,11 @@ public class CustomerMenu {
                 switch (choice) {
                     case 0 -> { return; }
                     case 1 -> showCustomers();
-                    case 2, 3 -> findCustomer();
+                    case 2 -> findCustomer();
+                    case 3 -> findByName();
                     case 4 -> session.addCustomer(readCustomer(input.readNewCode("KH", "Mã khách hàng: ")));
                     case 5 -> {
-                        Customer current = requireCustomer();
-                        Customer replacement = readCustomer(current.getId());
-                        session.updateCustomer(replacement);
+                        updateCustomerFields();
                     }
                     default -> System.out.println("Lựa chọn không hợp lệ.");
                 }
@@ -73,7 +70,7 @@ public class CustomerMenu {
             ConsoleView.options("QUẢN LÝ KHÁCH HÀNG", "Thêm khách hàng", "Hiển thị danh sách", "Tìm theo mã",
                     "Tìm theo tên hoặc từ khóa", "Tìm theo số điện thoại", "Sửa thông tin", "Xóa khách hàng",
                     "Lịch sử mua hàng", "Tổng số hóa đơn", "Tổng chi tiêu", "Lần mua gần nhất", "Thống kê theo tổng chi tiêu",
-                    "Thêm nhiều khách hàng", "Khởi tạo/thay danh sách bằng n khách hàng (chỉ trước khi có hóa đơn)");
+                    "Thêm nhiều khách hàng");
             int choice = input.readInt("Chọn: ");
             try {
                 switch (choice) {
@@ -86,21 +83,25 @@ public class CustomerMenu {
                     case 2 -> showCustomers();
                     case 3 -> findCustomer();
                     case 4, 5 -> {
-                        String key = input.read(choice == 5 ? "Số điện thoại: " : "Tên hoặc từ khóa: ");
-                        model.Person[] matches = people.search(key, "Customer", false);
-                        int count = 0;
-                        for (model.Person p : matches) {
-                            Customer c = (Customer) p;
-                            if (choice != 5 || c.getPhone().contains(key)) { System.out.println(c); count++; }
+                        while (true) {
+                            String key = choice == 5 ? input.readPhoneKeyword("Số điện thoại (0 để quay lại): ")
+                                    : input.read("Tên hoặc từ khóa (0 để quay lại): ");
+                            if (key.equals("0")) break;
+                            if (key.isBlank()) { System.out.println("Vui lòng nhập từ khóa tìm kiếm."); continue; }
+                            int count = 0;
+                            for (Customer c : customerService.getCustomers()) {
+                                String value = choice == 5 ? c.getPhone() : c.getName();
+                                if (value.toLowerCase(java.util.Locale.ROOT).contains(key.toLowerCase(java.util.Locale.ROOT))) {
+                                    System.out.println(c);
+                                    count++;
+                                }
+                            }
+                            if (count > 0) { System.out.println("Số khách hàng tìm thấy: " + count); break; }
+                            System.out.println("Không tìm thấy khách hàng phù hợp. Vui lòng nhập lại.");
                         }
-                        System.out.println("Số khách hàng tìm thấy: " + count);
-                        System.out.println(count == 0 ? "Không tìm thấy khách hàng phù hợp." : "Tìm kiếm khách hàng thành công.");
                     }
                     case 6 -> {
-                        Customer c = requireCustomer();
-                        Customer replacement = readCustomer(c.getId());
-                        session.updateCustomer(replacement);
-                        System.out.println("Cập nhật khách hàng thành công! Đã lưu dữ liệu.");
+                        if (updateCustomerFields()) System.out.println("Cập nhật khách hàng thành công! Đã lưu dữ liệu.");
                     }
                     case 7 -> {
                         Customer c = requireCustomer();
@@ -115,16 +116,8 @@ public class CustomerMenu {
                         for (Customer c : customers) System.out.printf("%s | %s | %d | %,.0f%n", c.getId(), c.getName(), sales.history(c.getId()).length, total(c.getId()));
                         System.out.println(customers.length == 0 ? "Chưa có khách hàng để thống kê." : "Đã thống kê chi tiêu của " + customers.length + " khách hàng.");
                     }
-                    case 13, 14 -> {
-                        if (choice == 14) {
-                            if (!session.state().getInvoices().getAll().isEmpty())
-                                throw new IllegalStateException("Đã có hóa đơn; không thể thay danh sách vì sẽ ảnh hưởng lịch sử giao dịch.");
-                            if (!input.read("Thay toàn bộ danh sách khách hàng hiện tại. Nhập OK để tiếp tục: ").equalsIgnoreCase("OK")) {
-                                System.out.println("Đã hủy thao tác.");
-                                break;
-                            }
-                        }
-                        int n = input.readInt(choice == 13 ? "Số lượng khách hàng cần thêm (1..1000): " : "Số lượng khách hàng cần nhập (1..1000): ");
+                    case 13 -> {
+                        int n = input.readInt("Số lượng khách hàng cần thêm (1..1000): ");
                         if (n < 1 || n > 1000) throw new IllegalArgumentException("Số lượng phải trong 1..1000.");
                         model.Person[] batch = new model.Person[n];
                         for (int i = 0; i < n; i++) {
@@ -132,17 +125,57 @@ public class CustomerMenu {
                             batch[i] = readCustomer(input.readNewCode("KH", "Mã khách hàng: "));
                         }
                         Customer[] customers = java.util.Arrays.stream(batch).map(Customer.class::cast).toArray(Customer[]::new);
-                        if (choice == 13) session.addCustomers(customers); else session.replaceCustomers(customers);
-                        System.out.println(choice == 13
-                                ? "Đã thêm " + n + " khách hàng vào danh sách. Đã lưu dữ liệu."
-                                : "Đã khởi tạo danh sách gồm " + n + " khách hàng. Đã lưu dữ liệu.");
+                        session.addCustomers(customers);
+                        System.out.println("Đã thêm " + n + " khách hàng vào danh sách. Đã lưu dữ liệu.");
                     }
                     default -> System.out.println("Lựa chọn không hợp lệ.");
                 }
             } catch (IllegalArgumentException | IllegalStateException e) { System.out.println(e.getMessage()); }
         }
     }
-    private Customer readCustomer(String id) { return new Customer(id, input.read("Họ tên: "), input.read("Điện thoại: ")); }
+    private Customer readCustomer(String id) { return new Customer(id, input.read("Họ tên: "), input.readPhone("Điện thoại: ")); }
+    private void findByName() {
+        while (true) {
+            String key = input.read("Tên hoặc từ khóa (0 để quay lại): ").toLowerCase(java.util.Locale.ROOT);
+            if (key.equals("0")) return;
+            if (key.isBlank()) { System.out.println("Vui lòng nhập tên hoặc từ khóa."); continue; }
+            int count = 0;
+            for (Customer customer : customerService.getCustomers()) {
+                if (customer.getName().toLowerCase(java.util.Locale.ROOT).contains(key)) {
+                    System.out.println(customer);
+                    count++;
+                }
+            }
+            if (count > 0) { System.out.println("Số khách hàng tìm thấy: " + count); return; }
+            System.out.println("Không tìm thấy khách hàng phù hợp. Vui lòng nhập lại.");
+        }
+    }
+    private boolean updateCustomerFields() {
+        Customer current = requireCustomer();
+        System.out.println("Hiện tại: " + current);
+        ConsoleView.options("SỬA KHÁCH HÀNG - CHỌN THÔNG TIN MUỐN SỬA", "Họ tên", "Số điện thoại", "Mã khách hàng");
+        int field = input.readInt("Chọn thông tin cần sửa: ");
+        switch (field) {
+            case 0 -> { System.out.println("Đã hủy sửa thông tin."); return false; }
+            case 1 -> session.updateCustomer(new Customer(current.getId(), input.read("Họ tên mới: "), current.getPhone()));
+            case 2 -> {
+                while (true) {
+                    String phone = input.readPhone("Số điện thoại mới: ");
+                    boolean duplicate = customerService.getCustomers().stream().anyMatch(c ->
+                            !c.getId().equalsIgnoreCase(current.getId()) && c.getPhone().equals(phone));
+                    if (duplicate) { System.out.println("Số điện thoại khách hàng đã tồn tại. Vui lòng nhập lại."); continue; }
+                    session.updateCustomer(new Customer(current.getId(), current.getName(), phone));
+                    break;
+                }
+            }
+            case 3 -> {
+                String id = input.readNewCode("KH", "Mã khách hàng mới: ");
+                session.renameCustomer(current.getId(), new Customer(id, current.getName(), current.getPhone()));
+            }
+            default -> throw new IllegalArgumentException("Lựa chọn không hợp lệ.");
+        }
+        return true;
+    }
     private Customer requireCustomer() {
         String id = input.readExistingCode("KH", "Mã khách hàng: ");
         Customer c = customerService.findCustomer(id);
@@ -164,7 +197,7 @@ public class CustomerMenu {
     public void addCustomer() {
         String id = input.read("Mã KH: ");
         String name = input.read("Tên KH: ");
-        String phone = input.read("SĐT: ");
+        String phone = input.readPhone("SĐT: ");
 
         System.out.println(customerService.addCustomer(
                 new Customer(id, name, phone))
@@ -179,9 +212,13 @@ public class CustomerMenu {
     }
 
     public void findCustomer() {
-        String id = session == null ? input.read("Mã KH: ") : input.readExistingCode("KH", "Mã khách hàng: ");
-        Customer c = customerService.findCustomer(id);
-        System.out.println(c == null ? "Không tìm thấy khách hàng có mã " + id : c);
+        while (true) {
+            String id = input.readExistingCode("KH", "Mã khách hàng (0 để quay lại): ", "0");
+            if (id.equals("0")) return;
+            Customer c = customerService.findCustomer(id);
+            if (c != null) { System.out.println(c); return; }
+            System.out.println("Sai mã khách hàng: " + id + ". Vui lòng nhập lại.");
+        }
     }
 
 }

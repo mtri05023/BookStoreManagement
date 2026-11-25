@@ -104,7 +104,7 @@ public final class StoreTextCodec {
                     }
                     case "BOOK" -> {
                         Book book = new Book(f[1], f[2], f[3], Double.parseDouble(f[4]), Integer.parseInt(f[5]));
-                        if (!legacy) { book.setCategory(f[6]); book.setPurchasePrice(Double.parseDouble(f[7])); }
+                        if (!legacy) { book.setCategory(f[6]); book.restorePurchasePrice(Double.parseDouble(f[7])); }
                         state.getBooks().add(book);
                     }
                     case "CUSTOMER" -> state.getCustomers().add(new Customer(f[1], f[2], f[3]));

@@ -203,12 +203,15 @@ public class InvoiceMenu {
                 switch (choice) {
                     case 1, 9 -> result = invoiceService.filter(java.time.LocalDate.MIN, java.time.LocalDate.MAX, null);
                     case 2, 4, 10 -> {
-                        String id = input.readExistingCode("HD", "Mã hóa đơn: ");
-                        Invoice invoice = invoiceService.findInvoice(id);
-                        if (invoice == null) throw new IllegalArgumentException("Không tìm thấy hóa đơn có mã " + id);
+                        Invoice invoice = findInvoiceForMenu();
+                        if (invoice == null) continue;
                         result = new Invoice[] { invoice };
                     }
-                    case 3 -> result = invoiceService.history(input.readExistingCode("KH", "Mã khách hàng: "));
+                    case 3 -> {
+                        String customerId = findCustomerIdForHistory();
+                        if (customerId == null) continue;
+                        result = invoiceService.history(customerId);
+                    }
                     case 5, 6, 7, 8 -> {
                         var range = ConsoleView.range(input, choice - 3);
                         result = invoiceService.filter(range[0], range[1], null);
@@ -220,6 +223,23 @@ public class InvoiceMenu {
                 System.out.println(result.length == 0 ? "Tìm/lọc hóa đơn không có kết quả."
                         : "Tìm/lọc hóa đơn thành công. Số hóa đơn: " + result.length);
             } catch (IllegalArgumentException | IllegalStateException | java.time.DateTimeException e) { System.out.println(e.getMessage()); }
+        }
+    }
+    private Invoice findInvoiceForMenu() {
+        while (true) {
+            String id = input.readExistingCode("HD", "Mã hóa đơn (0 để quay lại): ", "0");
+            if (id.equals("0")) return null;
+            Invoice invoice = invoiceService.findInvoice(id);
+            if (invoice != null) return invoice;
+            System.out.println("Sai mã hóa đơn: " + id + ". Vui lòng nhập lại.");
+        }
+    }
+    private String findCustomerIdForHistory() {
+        while (true) {
+            String id = input.readExistingCode("KH", "Mã khách hàng (0 để quay lại): ", "0");
+            if (id.equals("0")) return null;
+            if (customerService.findCustomer(id) != null) return id;
+            System.out.println("Sai mã khách hàng: " + id + ". Vui lòng nhập lại.");
         }
     }
     public void showInvoices() {

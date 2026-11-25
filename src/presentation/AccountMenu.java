@@ -18,7 +18,8 @@ public final class AccountMenu {
         business.PermissionService.require(business.PermissionService.Permission.MANAGE_ACCOUNTS);
         while (true) {
             ConsoleView.options("QUẢN LÝ TÀI KHOẢN", "Danh sách tài khoản", "Tạo tài khoản nhân viên",
-                    "Khóa tài khoản", "Mở khóa tài khoản", "Đặt lại mật khẩu nhân viên", "Sửa tên đăng nhập/vai trò");
+                    "Khóa tài khoản", "Mở khóa tài khoản", "Đặt lại mật khẩu nhân viên", "Sửa tên đăng nhập/vai trò",
+                    "Tìm tài khoản theo mã hoặc tên đăng nhập");
             int choice = input.readInt("Chọn: ");
             try {
                 switch (choice) {
@@ -36,6 +37,7 @@ public final class AccountMenu {
                         } finally { java.util.Arrays.fill(password, '\0'); }
                     }
                     case 6 -> updateAccount();
+                    case 7 -> findAccount();
                     default -> System.out.println("Lựa chọn không hợp lệ.");
                 }
             } catch (IllegalArgumentException | IllegalStateException | java.io.IOException e) {
@@ -44,10 +46,23 @@ public final class AccountMenu {
         }
     }
     private void list() {
-        for (Account account : accounts.repository().getAll())
-            System.out.printf("%s | %-20s | %-8s | nhân viên: %-8s | %s | %s%n", account.getId(), account.getUsername(),
-                    account.getRole(), account.getEmployeeId().isBlank() ? "-" : account.getEmployeeId(),
-                    account.isActive() ? "Hoạt động" : "Đã khóa", account.mustChangePassword() ? "Cần đổi mật khẩu" : "");
+        for (Account account : accounts.repository().getAll()) printAccount(account);
+    }
+    private void findAccount() {
+        while (true) {
+            String key = input.read("Mã hoặc tên đăng nhập (0 để quay lại): ");
+            if (key.equals("0")) return;
+            if (key.isBlank()) { System.out.println("Vui lòng nhập mã hoặc tên đăng nhập."); continue; }
+            Account account = accounts.repository().findById(key);
+            if (account == null) account = accounts.repository().findByUsername(key);
+            if (account != null) { printAccount(account); return; }
+            System.out.println("Sai mã hoặc tên đăng nhập tài khoản. Vui lòng nhập lại.");
+        }
+    }
+    private void printAccount(Account account) {
+        System.out.printf("%s | %-20s | %-8s | nhân viên: %-8s | %s | %s%n", account.getId(), account.getUsername(),
+                account.getRole(), account.getEmployeeId().isBlank() ? "-" : account.getEmployeeId(),
+                account.isActive() ? "Hoạt động" : "Đã khóa", account.mustChangePassword() ? "Cần đổi mật khẩu" : "");
     }
     private void createEmployee() throws java.io.IOException {
         String employeeId = input.readExistingCode("NV", "Mã nhân viên: ");

@@ -15,6 +15,20 @@ public class InputHelper {
         System.out.print(message);
         return scanner.nextLine().trim();
     }
+    public String readPhone(String message) {
+        while (true) {
+            String phone = read(message);
+            if (phone.matches("0[0-9]{9}")) return phone;
+            System.out.println("Số điện thoại phải có đúng 10 chữ số và bắt đầu bằng 0. Vui lòng nhập lại.");
+        }
+    }
+    public String readPhoneKeyword(String message) {
+        while (true) {
+            String keyword = read(message);
+            if (keyword.matches("[0-9]+")) return keyword;
+            System.out.println("Từ khóa số điện thoại chỉ được chứa chữ số. Vui lòng nhập lại.");
+        }
+    }
 
     public char[] readPassword(String message) {
         java.io.Console console = System.console();
@@ -55,7 +69,7 @@ public class InputHelper {
             // Explicit escape keeps historical IDs such as "01" accessible without renaming records.
             if (legacy && value.startsWith("=") && value.length() > 1) return value.substring(1).trim();
             try { return normalizeCode(prefix, value); }
-            catch (IllegalArgumentException error) { System.out.println(error.getMessage()); }
+            catch (IllegalArgumentException error) { System.out.println("Sai mã. " + error.getMessage() + " Vui lòng nhập lại."); }
         }
     }
 

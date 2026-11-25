@@ -22,14 +22,25 @@ public class Book {
                 double purchasePrice, double price, int quantity) {
         this(id, title, author, price, quantity);
         this.category = ModelChecks.text(category, "Thể loại");
-        if (!Double.isFinite(purchasePrice) || purchasePrice < 0)
-            throw new IllegalArgumentException("Giá nhập phải hữu hạn và không âm.");
-        this.purchasePrice = purchasePrice;
+        setPrices(purchasePrice, price);
     }
     public String getCategory() { return category; }
     public double getPurchasePrice() { return purchasePrice; }
     public void setCategory(String category) { this.category = ModelChecks.text(category, "Thể loại"); }
     public void setPurchasePrice(double value) {
+        setPrices(value, price);
+    }
+    public void setPrices(double purchasePrice, double salePrice) {
+        double validSalePrice = ModelChecks.price(salePrice);
+        if (!Double.isFinite(purchasePrice) || purchasePrice < 0)
+            throw new IllegalArgumentException("Giá nhập phải hữu hạn và không âm.");
+        if (validSalePrice <= purchasePrice)
+            throw new IllegalArgumentException("Giá bán phải lớn hơn giá nhập.");
+        this.purchasePrice = purchasePrice;
+        this.price = validSalePrice;
+    }
+    /** Preserve historical rows while requiring corrected prices on the next price edit. */
+    public void restorePurchasePrice(double value) {
         if (!Double.isFinite(value) || value < 0) throw new IllegalArgumentException("Giá nhập phải hữu hạn và không âm.");
         purchasePrice = value;
     }
@@ -41,7 +52,7 @@ public class Book {
 
     public void setTitle(String title) { this.title = ModelChecks.text(title, "Tên sách"); }
     public void setAuthor(String author) { this.author = ModelChecks.text(author, "Tác giả"); }
-    public void setPrice(double price) { this.price = ModelChecks.price(price); }
+    public void setPrice(double price) { setPrices(purchasePrice, price); }
     public void setQuantity(int quantity) {
         if (quantity < 0) throw new IllegalArgumentException("Tồn kho không được âm.");
         this.quantity = quantity;

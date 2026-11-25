@@ -55,8 +55,9 @@ public class BookService {
         current.setTitle(replacement.getTitle());
         current.setAuthor(replacement.getAuthor());
         current.setCategory(replacement.getCategory());
-        current.setPurchasePrice(replacement.getPurchasePrice());
-        current.setPrice(replacement.getPrice());
+        if (Double.compare(current.getPurchasePrice(), replacement.getPurchasePrice()) != 0
+                || Double.compare(current.getPrice(), replacement.getPrice()) != 0)
+            current.setPrices(replacement.getPurchasePrice(), replacement.getPrice());
         // Stock is changed separately through an audited inventory command.
     }
 
@@ -64,7 +65,7 @@ public class BookService {
                               double price, int quantity) {
         PermissionService.require(PermissionService.Permission.MANAGE_BOOKS);
         Book book = repository.findById(id);
-        if (book == null || !Double.isFinite(price) || price <= 0 || quantity < 0
+        if (book == null || !Double.isFinite(price) || price <= book.getPurchasePrice() || quantity < 0
                 || !validText(title) || !validText(author)) return false;
 
         book.setTitle(title);

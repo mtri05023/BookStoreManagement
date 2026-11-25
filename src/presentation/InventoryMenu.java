@@ -26,9 +26,17 @@ public final class InventoryMenu {
                     case 0 -> { return; }
                     case 1 -> display(books.getBooks().toArray(new Book[0]));
                     case 2 -> {
-                        String id = input.readExistingCode("S", "Mã sách: "); Book b = books.findBook(id);
-                        if (b == null) throw new IllegalArgumentException("Không tìm thấy sách: " + id);
-                        display(new Book[] { b });
+                        while (true) {
+                            String id = input.readExistingCode("S", "Mã sách (0 để quay lại): ", "0");
+                            if (id.equals("0")) break;
+                            Book b = books.findBook(id);
+                            if (b == null) {
+                                System.out.println("Sai mã sách: " + id + ". Vui lòng nhập lại.");
+                                continue;
+                            }
+                            display(new Book[] { b });
+                            break;
+                        }
                     }
                     case 3 -> {
                         Book[] result = books.search(input.read("Tên sách: "));

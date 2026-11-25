@@ -13,8 +13,10 @@ public final class EmployeeMenu {
     private final StoreSession session;
     private final InputHelper input;
     private final PersonService people;
-    public EmployeeMenu(StoreSession session, InputHelper input) {
+    private final business.AccountService accounts;
+    public EmployeeMenu(StoreSession session, InputHelper input, business.AccountService accounts) {
         this.session = session; this.input = input;
+        this.accounts = accounts;
         people = new PersonService(session.state().getPeople(), session.state().getInvoices());
     }
     private Employee requireEmployee() {
@@ -24,17 +26,25 @@ public final class EmployeeMenu {
         System.out.println("Đã tìm thấy nhân viên: " + e.getId() + " - " + e.getName());
         return e;
     }
+    private void findEmployee() {
+        while (true) {
+            String id = input.readExistingCode("NV", "Mã nhân viên (0 để quay lại): ", "0");
+            if (id.equals("0")) return;
+            Employee employee = session.state().getEmployees().findById(id);
+            if (employee != null) {
+                System.out.println("Tìm nhân viên theo mã thành công:\n" + employee);
+                return;
+            }
+            System.out.println("Sai mã nhân viên: " + id + ". Vui lòng nhập lại.");
+        }
+    }
     private Employee readEmployee(String id) {
         String name = input.read("Họ tên: ");
         String phone = readPhone();
         return new Employee(id, name, phone, readPosition());
     }
     private String readPhone() {
-        while (true) {
-            String phone = input.read("Điện thoại (10 chữ số, bắt đầu bằng 0): ");
-            if (phone.matches("0[0-9]{9}")) return phone;
-            System.out.println("Số điện thoại không hợp lệ. Hãy nhập đúng 10 chữ số và bắt đầu bằng 0.");
-        }
+        return input.readPhone("Điện thoại (10 chữ số, bắt đầu bằng 0): ");
     }
     private String readPosition() {
         System.out.println("Chọn chức vụ:");
@@ -75,16 +85,21 @@ public final class EmployeeMenu {
                         for (Person p : people.toArray()) if (p.getRole().equals("Employee")) { System.out.println(p); count++; }
                         System.out.println("Số nhân viên: " + count);
                     }
-                    case 3 -> System.out.println("Tìm nhân viên theo mã thành công:\n" + requireEmployee());
+                    case 3 -> findEmployee();
                     case 4, 5, 6 -> {
-                        String key = input.read("Từ khóa: ").toLowerCase(java.util.Locale.ROOT);
-                        int count = 0;
-                        for (Employee e : session.state().getEmployees().getAll()) {
-                            String value = choice == 4 ? e.getName() : choice == 5 ? e.getPhone() : e.getPosition();
-                            if (value.toLowerCase(java.util.Locale.ROOT).contains(key)) { System.out.println(e); count++; }
+                        while (true) {
+                            String key = (choice == 5 ? input.readPhoneKeyword("Số điện thoại (0 để quay lại): ")
+                                    : input.read("Từ khóa (0 để quay lại): ")).toLowerCase(java.util.Locale.ROOT);
+                            if (key.equals("0")) break;
+                            if (key.isBlank()) { System.out.println("Vui lòng nhập từ khóa tìm kiếm."); continue; }
+                            int count = 0;
+                            for (Employee e : session.state().getEmployees().getAll()) {
+                                String value = choice == 4 ? e.getName() : choice == 5 ? e.getPhone() : e.getPosition();
+                                if (value.toLowerCase(java.util.Locale.ROOT).contains(key)) { System.out.println(e); count++; }
+                            }
+                            if (count > 0) { System.out.println("Số nhân viên tìm thấy: " + count); break; }
+                            System.out.println("Không tìm thấy nhân viên phù hợp. Vui lòng nhập lại.");
                         }
-                        System.out.println("Số nhân viên tìm thấy: " + count);
-                        System.out.println(count == 0 ? "Không tìm thấy nhân viên phù hợp." : "Tìm kiếm nhân viên thành công.");
                     }
                     case 7 -> {
                         Employee e = requireEmployee();
@@ -95,8 +110,10 @@ public final class EmployeeMenu {
                     }
                     case 8 -> {
                         Employee e = requireEmployee();
-                        session.change(() -> { if (!people.delete(e.getId())) throw new IllegalStateException("Không tìm thấy nhân viên."); });
-                        System.out.println("Xóa nhân viên thành công! Đã lưu dữ liệu.");
+                        accounts.deleteEmployeeWithAccount(e.getId(), () -> session.change(() -> {
+                            if (!people.delete(e.getId())) throw new IllegalStateException("Không tìm thấy nhân viên.");
+                        }));
+                        System.out.println("Xóa nhân viên và tài khoản liên kết thành công! Đã lưu dữ liệu.");
                     }
                     case 9 -> {
                         var counts = new LinkedHashMap<String, Integer>();
@@ -120,7 +137,7 @@ public final class EmployeeMenu {
                     }
                     default -> System.out.println("Lựa chọn không hợp lệ.");
                 }
-            } catch (IllegalArgumentException | IllegalStateException e) { System.out.println(e.getMessage()); }
+            } catch (IllegalArgumentException | IllegalStateException | java.io.IOException e) { System.out.println(e.getMessage()); }
         }
     }
 }

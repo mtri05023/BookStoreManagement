@@ -55,8 +55,8 @@ public class BookMenu {
                     case 0 -> { return; }
                     case 1 -> showBooks();
                     case 2 -> findBook();
-                    case 3 -> { ConsoleView.books(bookService.search(input.read("Từ khóa: "))); }
-                    case 4 -> ConsoleView.books(bookService.filterPrice(input.readDouble("Giá thấp nhất: "), input.readDouble("Giá cao nhất: ")));
+                    case 3 -> searchBooks();
+                    case 4 -> filterPriceInteractive();
                     case 5 -> ConsoleView.books(bookService.sorted(input.readInt(
                             "Chọn tiêu chí sắp xếp (1 - Tên sách A-Z, 2 - Giá bán tăng dần, 3 - Số lượng tồn kho tăng dần): ")));
                     default -> System.out.println("Lựa chọn không hợp lệ.");
@@ -89,24 +89,31 @@ public class BookMenu {
                         System.out.println(result.length == 0 ? "Danh sách sách hiện đang trống." : "Đã hiển thị toàn bộ sách.");
                     }
                     case 3 -> {
-                        String id = input.readExistingCode("S", "Mã sách: ");
-                        Book b = bookService.findBook(id);
-                        if (b == null) System.out.println("Không tìm thấy sách có mã " + id);
-                        else { ConsoleView.books(new Book[] { b }); System.out.println("Tìm sách theo mã thành công."); }
+                        while (true) {
+                            String id = input.readExistingCode("S", "Mã sách (0 để quay lại): ", "0");
+                            if (id.equals("0")) break;
+                            Book b = bookService.findBook(id);
+                            if (b == null) {
+                                System.out.println("Sai mã sách: " + id + ". Vui lòng nhập lại.");
+                                continue;
+                            }
+                            ConsoleView.books(new Book[] { b });
+                            System.out.println("Tìm sách theo mã thành công.");
+                            break;
+                        }
                     }
                     case 4 -> {
-                        Book[] result = bookService.search(input.read("Tên hoặc từ khóa: "));
-                        ConsoleView.books(result);
-                        System.out.println(result.length == 0 ? "Không có sách khớp với từ khóa."
-                                : "Tìm kiếm thành công: " + result.length + " sách.");
+                        searchBooks();
                     }
                     case 5 -> {
                         String id = input.readExistingCode("S", "Mã sách cần sửa: ");
                         Book old = bookService.findBook(id);
                         if (old == null) throw new IllegalArgumentException("Không tìm thấy sách: " + id);
-                        System.out.println("Tồn kho được điều chỉnh riêng tại menu Quản lý tồn kho.");
-                        Book b = readBook(old.getId(), old.getQuantity());
-                        session.change(() -> bookService.updateBook(b));
+                        System.out.println("Hiện tại: " + old);
+                        Book b = readBookUpdate(old);
+                        if (b == null) break;
+                        if (!b.getId().equals(old.getId())) session.renameBook(old.getId(), b);
+                        else session.change(() -> bookService.updateBook(b));
                         System.out.println("Cập nhật thông tin sách thành công! Đã lưu dữ liệu.");
                     }
                     case 6 -> {
@@ -115,10 +122,7 @@ public class BookMenu {
                         System.out.println("Xóa sách thành công! Đã lưu dữ liệu.");
                     }
                     case 7 -> {
-                        Book[] result = bookService.filterPrice(input.readDouble("Giá thấp nhất: "), input.readDouble("Giá cao nhất: "));
-                        ConsoleView.books(result);
-                        System.out.println(result.length == 0 ? "Không có sách trong khoảng giá đã chọn."
-                                : "Lọc khoảng giá thành công: " + result.length + " sách.");
+                        filterPriceInteractive();
                     }
                     case 9 -> {
                         int count = input.readInt("Số lượng sách cần thêm (1..1000): ");
@@ -150,10 +154,55 @@ public class BookMenu {
         String author = input.read("Tác giả: ");
         Book existing = bookService.findBook(id);
         String category = existing == null ? "Chưa phân loại" : existing.getCategory();
-        double cost = input.readDouble("Giá nhập (VNĐ, 0 nếu chưa có): ");
-        double price = input.readDouble("Giá bán (VNĐ): ");
+        double cost;
+        while (true) {
+            cost = input.readDouble("Giá nhập (VNĐ, 0 nếu chưa có): ");
+            if (cost >= 0) break;
+            System.out.println("Giá nhập không được âm. Vui lòng nhập lại.");
+        }
+        double price;
+        while (true) {
+            price = input.readDouble("Giá bán (VNĐ, phải lớn hơn giá nhập): ");
+            if (price > cost) break;
+            System.out.println("Giá bán phải lớn hơn giá nhập. Vui lòng nhập lại.");
+        }
         if (bookService.findBook(id) == null) quantity = input.readInt("Số sách cần thêm vào kho (quyển): ");
         return new Book(id, title, author, category, cost, price, quantity);
+    }
+    private Book readBookUpdate(Book old) {
+        ConsoleView.options("SỬA THÔNG TIN SÁCH - CHỌN THÔNG TIN MUỐN SỬA", "Tên sách", "Tác giả", "Thể loại", "Giá nhập", "Giá bán", "Mã sách");
+        int field = input.readInt("Chọn thông tin cần sửa: ");
+        String id = old.getId(), title = old.getTitle(), author = old.getAuthor(), category = old.getCategory();
+        double cost = old.getPurchasePrice(), price = old.getPrice();
+        switch (field) {
+            case 0 -> { return null; }
+            case 1 -> title = input.read("Tên sách mới: ");
+            case 2 -> author = input.read("Tác giả mới: ");
+            case 3 -> category = input.read("Thể loại mới: ");
+            case 4 -> {
+                while (true) {
+                    cost = input.readDouble("Giá nhập mới: ");
+                    if (cost >= 0 && cost < price) break;
+                    System.out.println("Giá nhập phải không âm và nhỏ hơn giá bán. Vui lòng nhập lại.");
+                }
+            }
+            case 5 -> {
+                while (true) {
+                    price = input.readDouble("Giá bán mới: ");
+                    if (price > cost) break;
+                    System.out.println("Giá bán phải lớn hơn giá nhập. Vui lòng nhập lại.");
+                }
+            }
+            case 6 -> id = input.readNewCode("S", "Mã sách mới: ");
+            default -> throw new IllegalArgumentException("Lựa chọn không hợp lệ.");
+        }
+        if (field != 4 && field != 5 && price <= cost) {
+            Book unchangedPrices = new Book(id, title, author, price, old.getQuantity());
+            unchangedPrices.setCategory(category);
+            unchangedPrices.restorePurchasePrice(cost);
+            return unchangedPrices;
+        }
+        return new Book(id, title, author, category, cost, price, old.getQuantity());
     }
     public void addBook() {
         String id = input.read("Mã sách: ");
@@ -176,23 +225,66 @@ public class BookMenu {
     }
 
     public void findBook() {
-        Book book = bookService.findBook(input.read("Nhập mã sách: "));
-        System.out.println(book == null ? "Không tìm thấy." : book);
+        while (true) {
+            String id = input.readExistingCode("S", "Nhập mã sách (0 để quay lại): ", "0");
+            if (id.equals("0")) return;
+            Book book = bookService.findBook(id);
+            if (book != null) {
+                System.out.println(book);
+                return;
+            }
+            System.out.println("Sai mã sách: " + id + ". Vui lòng nhập lại.");
+        }
+    }
+
+    private void searchBooks() {
+        while (true) {
+            String keyword = input.read("Tên hoặc từ khóa (0 để quay lại): ");
+            if (keyword.equals("0")) return;
+            if (keyword.isBlank()) { System.out.println("Vui lòng nhập tên hoặc từ khóa."); continue; }
+            Book[] result = bookService.search(keyword);
+            if (result.length > 0) {
+                ConsoleView.books(result);
+                System.out.println("Tìm kiếm thành công: " + result.length + " sách.");
+                return;
+            }
+            System.out.println("Không có sách khớp với từ khóa. Vui lòng nhập lại.");
+        }
+    }
+    private void filterPriceInteractive() {
+        while (true) {
+            double min = input.readDouble("Giá thấp nhất (-1 để quay lại): ");
+            if (min == -1) return;
+            double max = input.readDouble("Giá cao nhất: ");
+            try {
+                Book[] result = bookService.filterPrice(min, max);
+                if (result.length == 0) {
+                    System.out.println("Không có sách trong khoảng giá đã chọn. Vui lòng nhập lại.");
+                    continue;
+                }
+                ConsoleView.books(result);
+                System.out.println("Lọc khoảng giá thành công: " + result.length + " sách.");
+                return;
+            } catch (IllegalArgumentException error) {
+                System.out.println(error.getMessage() + " Vui lòng nhập lại.");
+            }
+        }
     }
 
     public void updateBook() {
         String id = input.read("Mã sách cần sửa: ");
-        if (bookService.findBook(id) == null) {
+        Book old = bookService.findBook(id);
+        if (old == null) {
             System.out.println("Không tìm thấy sách.");
             return;
         }
-        String title = input.read("Tên mới: ");
-        String author = input.read("Tác giả mới: ");
-        double price = input.readDouble("Giá mới: ");
-        int quantity = input.readInt("Số lượng mới: ");
-
-        System.out.println(bookService.updateBook(id, title, author, price, quantity)
-                ? "Cập nhật thành công." : "Cập nhật thất bại.");
+        System.out.println("Hiện tại: " + old);
+        Book replacement = readBookUpdate(old);
+        if (replacement == null) return;
+        if (!replacement.getId().equals(old.getId()))
+            throw new IllegalStateException("Đổi mã sách cần phiên quản lý để kiểm tra hóa đơn và nhật ký kho.");
+        bookService.updateBook(replacement);
+        System.out.println("Cập nhật thành công.");
     }
 
     public void deleteBook() {

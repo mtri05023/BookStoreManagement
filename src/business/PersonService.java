@@ -25,23 +25,6 @@ public class PersonService {
         people.initialize(initialPeople);
     }
 
-    /** Replace one typed list while retaining the other view in the same Person[]. */
-    public void initializeRole(String role, Person[] replacements) {
-        PermissionService.require(PermissionService.Permission.MANAGE_EMPLOYEES);
-        if (!"Customer".equals(role) && !"Employee".equals(role))
-            throw new IllegalArgumentException("Loại danh sách không hợp lệ.");
-        if (replacements == null) throw new IllegalArgumentException("Danh sách mới không được null.");
-        Person[] current = people.toArray();
-        Person[] combined = new Person[current.length + replacements.length];
-        int count = 0;
-        for (Person p : current) if (!p.getRole().equals(role)) combined[count++] = p;
-        for (Person p : replacements) {
-            if (p == null || !p.getRole().equals(role)) throw new IllegalArgumentException("Phần tử không đúng loại danh sách.");
-            combined[count++] = p;
-        }
-        initialize(java.util.Arrays.copyOf(combined, count));
-    }
-
     public void add(Person person) {
         if (person instanceof model.Employee) PermissionService.require(PermissionService.Permission.MANAGE_EMPLOYEES);
         else PermissionService.require(PermissionService.Permission.MANAGE_CUSTOMERS);

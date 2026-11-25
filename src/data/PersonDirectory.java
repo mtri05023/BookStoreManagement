@@ -30,6 +30,7 @@ public final class PersonDirectory implements ICrudRepository<Person> {
     @Override
     public void add(Person person) {
         requirePerson(person);
+        checkCustomerPhone(person, null);
         if (findById(person.getId()) != null) {
             throw new IllegalArgumentException("Mã người đã tồn tại: " + person.getId());
         }
@@ -58,6 +59,7 @@ public final class PersonDirectory implements ICrudRepository<Person> {
         requirePerson(replacement);
         int index = indexOf(id);
         if (index < 0) return false;
+        checkCustomerPhone(replacement, people[index]);
         if (!people[index].getId().equals(replacement.getId())
                 || people[index].getClass() != replacement.getClass()) {
             throw new IllegalArgumentException("Không đổi mã hoặc loại người khi sửa.");
@@ -124,6 +126,15 @@ public final class PersonDirectory implements ICrudRepository<Person> {
     private static void requirePerson(Person person) {
         if (!(person instanceof Customer) && !(person instanceof Employee)) {
             throw new IllegalArgumentException("Danh sách chỉ nhận Customer hoặc Employee.");
+        }
+    }
+
+    private void checkCustomerPhone(Person person, Person ignored) {
+        if (!(person instanceof Customer candidate)) return;
+        for (int i = 0; i < size; i++) {
+            if (people[i] != ignored && people[i] instanceof Customer existing
+                    && existing.getPhone().equals(candidate.getPhone()))
+                throw new IllegalArgumentException("Số điện thoại khách hàng đã tồn tại.");
         }
     }
 
