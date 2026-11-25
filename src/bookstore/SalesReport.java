@@ -50,7 +50,7 @@ public class SalesReport {
             }
         }
         System.out.println("\nTHỐNG KÊ DOANH THU: " + (from.equals(LocalDate.MIN) ? "Toàn bộ thời gian" : from.format(InputHelper.DATE) + " - " + to.format(InputHelper.DATE)));
-        System.out.printf("Tổng doanh thu: %,.0f VNĐ%nSố hóa đơn: %d%nSố lượng sách bán ra: %d%nSố khách hàng: %d%n",
+        System.out.printf(InputHelper.CURRENCY_LOCALE, "Tổng doanh thu: %,.0f VNĐ%nSố hóa đơn: %d%nSố lượng sách bán ra: %d%nSố khách hàng: %d%n",
                 total, invoices.length, units, customers.size());
         if (invoices.length == 0) System.out.println("Chưa có giao dịch trong thời gian đã chọn.");
         else System.out.println("Đã lập thống kê thành công từ " + invoices.length + " hóa đơn.");
@@ -62,13 +62,13 @@ public class SalesReport {
                         supplierByBook.getOrDefault(e.getKey(), "Chưa ghi nhận"), e.getValue(), revenues.get(e.getKey())));
         if (mode == 9) {
             System.out.println("Mã hóa đơn | Ngày thanh toán | Mã khách hàng | Thực thanh toán");
-            for (Invoice i : invoices) System.out.printf("%s | %s | %s | %,.0f%n", i.getId(), i.getPaymentDate().format(InputHelper.DATE), i.getCustomer().getId(), i.getTotal());
+            for (Invoice i : invoices) System.out.printf(InputHelper.CURRENCY_LOCALE, "%s | %s | %s | %,.0f%n", i.getId(), i.getPaymentDate().format(InputHelper.DATE), i.getCustomer().getId(), i.getTotal());
         }
         if (mode == 10) {
             System.out.println("DOANH THU THEO KHÁCH HÀNG: Mã | Tổng tiền (VNĐ)");
             revenueByCustomer(from, to).entrySet().stream()
                     .sorted(java.util.Map.Entry.<String, Double>comparingByValue().reversed())
-                    .forEach(e -> System.out.printf("%s | %,.0f%n", e.getKey(), e.getValue()));
+                    .forEach(e -> System.out.printf(InputHelper.CURRENCY_LOCALE, "%s | %,.0f%n", e.getKey(), e.getValue()));
             if (revenueByCustomer(from, to).isEmpty()) System.out.println("Không có khách hàng phát sinh doanh thu trong thời gian này.");
         }
         if (mode == 11) printSupplierRanking(invoices);
@@ -145,7 +145,6 @@ public class SalesReport {
         return java.util.Arrays.stream(filter(from, to)).mapToDouble(Invoice::getTotal).sum();
     }
     public java.util.Map<String, Double> revenueByCustomer(java.time.LocalDate from, java.time.LocalDate to) {
-        AccountList.require(AccountList.Permission.VIEW_REPORTS);
         AccountList.require(AccountList.Permission.VIEW_REPORTS);
         java.util.Map<String, Double> result = new LinkedHashMap<>();
         for (Invoice i : filter(from, to)) result.merge(i.getCustomer().getId(), i.getTotal(), Double::sum);

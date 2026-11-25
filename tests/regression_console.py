@@ -123,7 +123,7 @@ def main():
         assert sum(row.startswith("DETAIL|HD990|S017|") and "|1|170000.0" in row for row in after) == 1
         assert not any(row.startswith("INVOICE|HD991|") for row in after)
         out = run(payment, ["qaadmin", "admin123", "6", "2", "990", "0", "2", "8", "990", "0", "0", "0"], build)
-        assert "HÓA ĐƠN HD990" in out and "Tổng tiền: 170,000 VNĐ" in out
+        assert "HÓA ĐƠN HD990" in out and "Tổng tiền: 170.000 VNĐ" in out
         assert "S017" in out and "KH990" in out
         print("PASS payment, cancellation, invoice lookup and restart")
 
